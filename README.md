@@ -67,7 +67,7 @@ Open `http://localhost:8000` (or your custom port) in your browser. Under the **
 If you run the developer server on a custom port, update the `REMOTE_ENGINE_URL` in `utils/config.js`:
 ```javascript
 export const CONFIG = {
-    DUCKDB_WASM_VERSION: '1.33.1-dev37.0',
+    DUCKDB_WASM_VERSION: '1.33.1-dev53.0',
     REMOTE_ENGINE_URL: 'http://localhost:4000' // Matches your custom API port
 };
 ```
