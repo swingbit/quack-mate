@@ -565,23 +565,28 @@ export function getPseudoLegalMovesSQL(isWhiteTurn) {
 export function getLegalMoveCountSQL(isWhiteTurn) {
     return `WITH ${getBoardStateCTEs(isWhiteTurn)}, 
             all_moves AS (${getMovesSelectSQL('search_space')}),
-            expanded AS (
-                SELECT ec.*, s.active_turn as active_turn_parent,
+            piece_masks AS (
+                SELECT * FROM (VALUES ${getPieceMasksValuesSQL()}) AS t(piece, ${getPieceMasksColumnsSQL()})
+            ),
+            expanded_raw AS (
+                SELECT 
+                    m_in.*,
+                    s.active_turn as active_turn_parent,
+                    ${getAppliedStateDirectSQL('m_in', 's')},
                     CAST(CASE 
-                        WHEN ec.piece = (CASE WHEN s.active_turn = ${TURNS.WHITE} THEN ${PIECES.K} ELSE ${PIECES.k} END) THEN ec.to_sq 
+                        WHEN m_in.piece = (CASE WHEN s.active_turn = ${TURNS.WHITE} THEN ${PIECES.K} ELSE ${PIECES.k} END) THEN m_in.to_sq 
                         ELSE (CASE WHEN s.active_turn = ${TURNS.WHITE} THEN ${getBitIndexSQL('s.wK_bb')} ELSE ${getBitIndexSQL('s.bK_bb')} END)
-                    END AS TINYINT) as active_king_sq,
-                    ${getOrSQL(['ec.wK_bb', 'ec.wQ_bb', 'ec.wR_bb', 'ec.wB_bb', 'ec.wN_bb', 'ec.wP_bb', 'ec.bK_bb', 'ec.bQ_bb', 'ec.bR_bb', 'ec.bB_bb', 'ec.bN_bb', 'ec.bP_bb'])} as all_pieces
-                FROM board_state_bbs s, 
-                LATERAL (
-                    SELECT ec_in.* FROM (
-                        SELECT m_inner.*, ${getExpandedStateColumnsPivoted('s', 'm_inner')}
-                        FROM (
-                            SELECT m_in.*, ${getPivotedDeltasSQL('m_in', 's')}
-                            FROM all_moves m_in
-                        ) m_inner
-                    ) ec_in
-                ) ec
+                    END AS TINYINT) as active_king_sq
+                FROM board_state_bbs s
+                CROSS JOIN all_moves m_in
+                LEFT JOIN piece_masks pm_d ON pm_d.piece = m_in.piece
+                LEFT JOIN piece_masks pm_a ON pm_a.piece = (CASE WHEN m_in.is_promo = 1 THEN (CASE WHEN s.active_turn = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) ELSE m_in.piece END)
+                LEFT JOIN piece_masks pm_c ON pm_c.piece = ${captureLogicFor('m_in', 's')}
+            ),
+            expanded AS (
+                SELECT *,
+                    ${getOrSQL(['wK_bb', 'wQ_bb', 'wR_bb', 'wB_bb', 'wN_bb', 'wP_bb', 'bK_bb', 'bQ_bb', 'bR_bb', 'bB_bb', 'bN_bb', 'bP_bb'])} as all_pieces
+                FROM expanded_raw
             )
             SELECT CAST(COUNT(*) AS INTEGER) as move_count FROM expanded e WHERE NOT (${getIsKingInCheckSQL('e', 'e.active_turn_parent')});
 `;
