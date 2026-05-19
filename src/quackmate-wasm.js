@@ -14,7 +14,8 @@ import {
     populateMobilityPrecomputed,
     populateZobristTables,
     getDuckDBThreads as getDuckDBThreads_logic,
-    DEFAULT_OPTIONS
+    DEFAULT_OPTIONS,
+    RESTRICTED_MODE_LIMITS
 } from './quackmate.js';
 
 import {
@@ -23,7 +24,7 @@ import {
     getInitSearchTablesSQL
 } from './sql/schema.js';
 
-export { DEFAULT_OPTIONS };
+export { DEFAULT_OPTIONS, RESTRICTED_MODE_LIMITS };
 
 // --- Resource Cache ---
 const WasmBlobCache = {

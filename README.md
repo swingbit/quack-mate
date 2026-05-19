@@ -10,11 +10,11 @@ Quackmate is a proof-of-concept chess engine where the core logic — move gener
 
 ## Features
 
-- **Database-Centric State**: The chessboard state is stored and modified entirely inside DuckDB tables (`piece_bitboards` and `game_state`).
-- **SQL Move Generation**: Generates all pseudo-legal and legal moves using relational joins and bitwise operations on `UBIGINT` bitboards.
+- **Database-Centric State**: The chessboard state is stored and modified entirely inside DuckDB tables.
+- **SQL Move Generation**: Generates all pseudo-legal and legal moves (except en-passant) using relational joins and bitwise operations on `UBIGINT` bitboards.
 - **Dual Search Implementations**:
   - **Batched PVS (Principal Variation Search)**: Iterative deepening with Late Move Reduction (LMR), Late Move Pruning (LMP), MVV-LVA move ordering, and a Zobrist-hashed Transposition Table.
-  - **Recursive CTE Search**: An elegant search strategy that expands and evaluates the minimax game tree using a single recursive SQL query.
+  - **Recursive CTE Search**: An elegant search strategy that expands and evaluates the minimax game tree using a single recursive SQL query. Exhaustive search: no pruning performed.
 - **Cross-Platform Adaptability**:
   - **DuckDB WASM**: Runs fully sandboxed in the browser main-thread/web-workers. WASM is currently limited to 4 GB RAM.
   - **DuckDB Native (Server)**: Executes engine queries natively over a REST API. No memory limitations.

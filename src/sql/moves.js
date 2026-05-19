@@ -778,7 +778,7 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
 
 
 export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, batchSize, isWhiteTurn, batchId, pAlpha = null, pBeta = null, options = {}) {
-    const maxDepth = options.maxDepth || 3;
+    const maxDepth = options.maxDepth || 4;
     return `
     INSERT INTO ${targetFrontier} (
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece,

@@ -12,7 +12,8 @@ import {
   getDuckDBThreads,
   setQueryLogger,
   DuckDBWasmEngine,
-  DEFAULT_OPTIONS
+  DEFAULT_OPTIONS,
+  RESTRICTED_MODE_LIMITS
 } from './quackmate-wasm.js';
 import { CONFIG } from '../utils/config.js';
 
@@ -815,13 +816,13 @@ function bindEngineOptions() {
 
     // Enforce Restricted Mode Limits
     if (isRestrictedMode) {
-        if (field === 'maxThreads' && finalVal > 2) {
-            finalVal = 2;
-            $el.val(2);
+        if (field === 'maxThreads' && finalVal > RESTRICTED_MODE_LIMITS.maxThreads) {
+            finalVal = RESTRICTED_MODE_LIMITS.maxThreads;
+            $el.val(RESTRICTED_MODE_LIMITS.maxThreads);
         }
-        if (field === 'maxDepth' && finalVal > 4) {
-            finalVal = 4;
-            $el.val(4);
+        if (field === 'maxDepth' && finalVal > RESTRICTED_MODE_LIMITS.maxDepth) {
+            finalVal = RESTRICTED_MODE_LIMITS.maxDepth;
+            $el.val(RESTRICTED_MODE_LIMITS.maxDepth);
         }
     }
 
@@ -953,13 +954,13 @@ function initUI() {
       $nativeOptions.text($nativeOptions.text() + " (Unavailable)");
       
       // Cap initial UI values
-      $('#white-max-threads, #black-max-threads').attr('max', 2);
-      $('#white-max-depth, #black-max-depth').attr('max', 4);
+      $('#white-max-threads, #black-max-threads').attr('max', RESTRICTED_MODE_LIMITS.maxThreads);
+      $('#white-max-depth, #black-max-depth').attr('max', RESTRICTED_MODE_LIMITS.maxDepth);
       
-      if (players.white.options.maxThreads > 2) players.white.options.maxThreads = 2;
-      if (players.black.options.maxThreads > 2) players.black.options.maxThreads = 2;
-      if (players.white.options.maxDepth > 4) players.white.options.maxDepth = 4;
-      if (players.black.options.maxDepth > 4) players.black.options.maxDepth = 4;
+      if (players.white.options.maxThreads > RESTRICTED_MODE_LIMITS.maxThreads) players.white.options.maxThreads = RESTRICTED_MODE_LIMITS.maxThreads;
+      if (players.black.options.maxThreads > RESTRICTED_MODE_LIMITS.maxThreads) players.black.options.maxThreads = RESTRICTED_MODE_LIMITS.maxThreads;
+      if (players.white.options.maxDepth > RESTRICTED_MODE_LIMITS.maxDepth) players.white.options.maxDepth = RESTRICTED_MODE_LIMITS.maxDepth;
+      if (players.black.options.maxDepth > RESTRICTED_MODE_LIMITS.maxDepth) players.black.options.maxDepth = RESTRICTED_MODE_LIMITS.maxDepth;
 
       $('#help-restricted-section').show();
   } else {

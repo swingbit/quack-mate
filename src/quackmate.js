@@ -62,10 +62,11 @@ import {
     COMPUTED_PST,
     ZOBRIST_CONSTANTS,
     ZOBRIST_MISC,
-    DEFAULT_OPTIONS
+    DEFAULT_OPTIONS,
+    RESTRICTED_MODE_LIMITS
 } from './quackmate-common.js';
 
-export { PIECES, TURNS, DEFAULT_OPTIONS };
+export { PIECES, TURNS, DEFAULT_OPTIONS, RESTRICTED_MODE_LIMITS };
 
 /**
  * Parses an algebraic square notation (e.g., 'e2') to a bitboard index (0-63).

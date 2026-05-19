@@ -660,7 +660,7 @@ export async function find_best_move(fen, options) {
         for (let i = 0; i < 64; i++) killerMoves[i] = [null, null];
         historyTable.fill(0);
     }
-    const maxDepth = opts.maxDepth || 3;
+    const maxDepth = opts.maxDepth || 4;
     const useAlphaBeta = opts.useAlphaBeta !== false;
     const useTT = opts.useTT !== false;
     const useLMR = opts.useLMR !== false;

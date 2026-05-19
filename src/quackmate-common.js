@@ -15,7 +15,7 @@ export const PIECE_VALUES = {
 
 export const DEFAULT_OPTIONS = {
     strategy: 'batched_pvs',
-    maxDepth: 3,
+    maxDepth: 4,
     maxThreads: 1,
     bpvsBatchSize: 64,
     useTT: true,
@@ -30,6 +30,11 @@ export const DEFAULT_OPTIONS = {
     useMVVLVA: true,
     maxDepthQS: 0,
     debug: false
+};
+
+export const RESTRICTED_MODE_LIMITS = {
+    maxThreads: 2,
+    maxDepth: 5
 };
 
 // =============================================================================
