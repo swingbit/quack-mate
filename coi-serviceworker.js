@@ -56,12 +56,15 @@ if (typeof window === 'undefined') {
         if (isAreWorksersEnabled && coi.shouldRegister()) {
             navigator.serviceWorker.register(script.src).then((registration) => {
                 registration.addEventListener("updatefound", () => {
-                    registration.installing.addEventListener("statechange", () => {
-                        if (registration.installing.state === "installed") {
-                            console.log("Service worker installed, reloading for COI...");
-                            if (coi.shouldReload()) location.reload();
-                        }
-                    });
+                    const worker = registration.installing;
+                    if (worker) {
+                        worker.addEventListener("statechange", () => {
+                            if (worker.state === "installed") {
+                                console.log("Service worker installed, reloading for COI...");
+                                if (coi.shouldReload()) location.reload();
+                            }
+                        });
+                    }
                 });
 
                 if (registration.active && !navigator.serviceWorker.controller) {
