@@ -1,4 +1,4 @@
-import { TURNS } from '../quackmate-common.js';
+import { TURNS, SCORE_MATE_THRESHOLD } from '../quackmate-common.js';
 import { getBitIndexSQL } from './utils.js';
 import { getStaticEvalSQL } from './eval.js';
 
@@ -107,11 +107,10 @@ export function getMateScoringSQL(targetDepth) {
     return `
         UPDATE search_tree 
         SET minimax_eval = CASE 
-            WHEN is_check = 1 THEN (CASE WHEN active_turn = ${TURNS.WHITE} THEN -900000 + depth ELSE 900000 - depth END)
+            WHEN is_check = 1 THEN (CASE WHEN active_turn = ${TURNS.WHITE} THEN -${SCORE_MATE_THRESHOLD} + depth ELSE ${SCORE_MATE_THRESHOLD} - depth END)
             ELSE 0 
         END
         WHERE depth < ${targetDepth} 
-        AND minimax_eval IS NULL
         AND NOT EXISTS (SELECT 1 FROM search_tree child WHERE child.parent_id = search_tree.id)
     `;
 }

@@ -731,7 +731,7 @@ export async function find_best_move(fen, options) {
         return rank;
     }
 
-    function quiescence(gameState, alpha, beta, maxQSDepth, currentQSDepth) {
+    function quiescence(gameState, alpha, beta, maxQSDepth, currentQSDepth, depth) {
         nodes++;
 
         const inCheck = gameState.isKingInCheck(gameState.turn);
@@ -782,7 +782,7 @@ export async function find_best_move(fen, options) {
         // If in check and no moves are generated, it is checkmate!
         if (filteredMoves.length === 0) {
             if (inCheck) {
-                return -SCORE_INFINITE + currentQSDepth; // Mate score
+                return -SCORE_MATE_THRESHOLD + depth + currentQSDepth; // Consistent Mate score
             }
             return staticEval;
         }
@@ -800,7 +800,7 @@ export async function find_best_move(fen, options) {
             const child = gameState.clone();
             child.applyMove(move);
 
-            const score = -quiescence(child, -beta, -alpha, maxQSDepth, currentQSDepth + 1);
+            const score = -quiescence(child, -beta, -alpha, maxQSDepth, currentQSDepth + 1, depth);
 
             if (score > bestScore) {
                 bestScore = score;
@@ -838,7 +838,7 @@ export async function find_best_move(fen, options) {
 
         if (remainingDepth <= 0) {
             if (maxDepthQS > 0) {
-                return quiescence(gameState, alpha, beta, maxDepthQS, 0);
+                return quiescence(gameState, alpha, beta, maxDepthQS, 0, depth);
             }
             return gameState.evaluate() * (gameState.turn === TURNS.WHITE ? 1 : -1);
         }

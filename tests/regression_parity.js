@@ -89,6 +89,32 @@ async function run() {
         assert.strictEqual(sqlRes.score, stdRes.score, `Depth ${d} Score Mismatch!`);
     }
 
+    // Test Case 4: Black to Move Mating Sequence Parity
+    console.log("\n--- TEST CASE 4: Black Mating Parity (FEN: 3rk2r/ppp2ppp/2n5/2p2q1P/P2n3K/6P1/8/3q4 b k - 0 1) ---");
+    const FEN_BLACK = '3rk2r/ppp2ppp/2n5/2p2q1P/P2n3K/6P1/8/3q4 b k - 0 1';
+    const optBlackMate = {
+        useAlphaBeta: true,
+        useTT: true,
+        useRFP: true,
+        useFFP: true,
+        useLMR: true,
+        useLMP: true,
+        useHistory: true,
+        useKillers: true,
+        maxDepthQS: 1
+    };
+    
+    const stdBlackRes = await findBestMoveStd(FEN_BLACK, { ...optBlackMate, maxDepth: 4, resetContext: true });
+    const sqlBlackRes = await sqlEngine.find_best_move(FEN_BLACK, { ...optBlackMate, maxDepth: 4, strategy: 'batched_pvs', maxThreads: 1 });
+    
+    const stdBlackMoveStr = `${stdBlackRes.move?.from}-${stdBlackRes.move?.to}`;
+    const sqlBlackMoveStr = `${sqlBlackRes.move?.from}-${sqlBlackRes.move?.to}`;
+    
+    console.log(`Depth 4: JS Engine = ${stdBlackMoveStr} (Score: ${stdBlackRes.score}) | SQL Engine = ${sqlBlackMoveStr} (Score: ${sqlBlackRes.score})`);
+    
+    assert.strictEqual(sqlBlackMoveStr, stdBlackMoveStr, "Depth 4 Move Mismatch for Black mate!");
+    assert.strictEqual(sqlBlackRes.score, stdBlackRes.score, "Depth 4 Score Mismatch for Black mate!");
+
     console.log("\n🎉 ALL PARITY REGRESSION TESTS PASSED SUCCESSFULLY!");
 }
 

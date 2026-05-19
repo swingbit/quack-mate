@@ -885,6 +885,14 @@ export function getQSMinimaxBackpropSQL(qsBackD) {
  */
 export function getApplyQSEvalToMainTreeSQL(targetDepth) {
     return `
+        -- Score checkmates on horizon leaves that had is_check = 1 but 0 children in QS search tree
+        UPDATE search_tree s
+        SET minimax_eval = CASE WHEN active_turn = ${TURNS.WHITE} THEN -${SCORE_MATE_THRESHOLD} + depth ELSE ${SCORE_MATE_THRESHOLD} - depth END
+        WHERE depth = ${targetDepth}
+          AND is_check = 1
+          AND NOT EXISTS (SELECT 1 FROM qs_search_tree qs WHERE qs.parent_id = s.id);
+
+        -- Apply QS results for leaves that had moves in QS
         UPDATE search_tree s
         SET minimax_eval = (
             SELECT CASE WHEN s.active_turn = ${TURNS.WHITE}

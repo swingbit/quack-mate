@@ -1334,7 +1334,8 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
     }
 
     const finalFEN = await toFen(db);
-    const result = { ...options, fen: finalFEN, nodes: nodesAccumulated, score: currentBestScore, move: currentBestMove, stats };
+    const relativeScore = currentBestScore * (isWhiteTurn ? 1 : -1);
+    const result = { ...options, fen: finalFEN, nodes: nodesAccumulated, score: relativeScore, move: currentBestMove, stats };
     
     if (options.returnAllMoves) {
         const allMoves = await db.query(`
@@ -1350,7 +1351,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             piece: m.piece,
             is_castle: !!m.is_castle,
             is_promo: !!m.is_promo,
-            score: Number(m.minimax_eval)
+            score: Number(m.minimax_eval) * (isWhiteTurn ? 1 : -1)
         }));
     }
     
