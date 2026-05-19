@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="coi-serviceworker.js"></script>
+  <title>Quack-mate</title>
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
+    integrity="sha384-q94+BZtLrkL1/ohfjR8c6L+A6qzNH9R2hBLwyoAfu3i/WCvQjzL2RQJ3uNHDISdU" crossorigin="anonymous">
+  <link rel="stylesheet" href="src/quackmate.css" />
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"
+    integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous">
+    </script>
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"
+    integrity="sha384-8Vi8VHwn3vjQ9eUHUxex3JSN/NFqUg3QbPyX8kWyb93+8AC/pPWTzj+nHtbC5bxD" crossorigin="anonymous">
+    </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "apache-arrow": "https://cdn.jsdelivr.net/npm/apache-arrow@latest/Arrow.mjs",
+        "flatbuffers": "https://esm.sh/flatbuffers",
+        "tslib": "https://cdn.jsdelivr.net/npm/tslib@latest/tslib.es6.mjs"
+      }
+    }
+  </script>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+</head>
+
+<body>
+  <div class="main-container">
+
+    <!-- LEFT COLUMN: WHITE CONFIG -->
+    <div class="config-column left">
+      <!-- White Settings -->
+      <div class="config-row">
+        <label>Player:</label>
+        <select id="white-player-type" class="config-input engine-option" data-color="white" data-field="player">
+          <option value="human">Human</option>
+          <option value="duckdb_wasm" selected>DuckDB WASM</option>
+          <option value="duckdb_native">DuckDB Native (Server)</option>
+          <option value="standard_js">Standard JS Engine</option>
+        </select>
+      </div>
+
+      <div id="white-ai-settings">
+        <div class="config-row">
+          <label>Strategy:</label>
+          <select id="white-strategy-select" class="config-input engine-option" data-color="white" data-field="strategy">
+            <option value="recursive" selected>Recursive CTE</option>
+            <option value="batched_pvs">Batched PVS</option>
+            <option value="minimax">Minimax</option>
+          </select>
+        </div>
+
+        <div class="config-row">
+          <span id="white-depth-container" class="config-group">
+            <label>Max Depth:</label>
+            <input type="number" id="white-max-depth" min="1" max="10" value="3" class="config-input engine-option" data-color="white" data-field="maxDepth">
+          </span>
+          
+          <span id="white-qs-depth-container" class="config-group" style="margin-left: 10px;">
+            <label class="label-auto">Max Depth QS:</label>
+            <input type="number" id="white-max-depth-qs" min="0" max="10" value="0" class="config-input engine-option" data-color="white" data-field="maxDepthQS">
+          </span>
+
+          <span id="white-threads-container" class="threads-container config-group" style="margin-left: 10px;">
+             <label class="label-auto">Threads:</label>
+             <input type="number" id="white-max-threads" min="1" max="128" value="1" class="config-input engine-option" data-color="white" data-field="maxThreads">
+          </span>
+        </div>
+
+
+
+        <div id="white-ab-container" class="config-row" style="display: none;">
+          <input type="checkbox" id="white-use-ab" class="engine-option" data-color="white" data-field="useAlphaBeta" checked />
+          <label for="white-use-ab" class="label-checkbox">Alpha-Beta Pruning</label>
+        </div>
+
+        <div id="white-pvs-optimizations" class="optimizations-container" style="display: none; margin-bottom: 8px; width: 100%;">
+          <details style="width: 100%;">
+            <summary class="pvs-summary">Optimisations</summary>
+            <div class="pvs-details-content">
+              <div class="pvs-columns-container">
+                <div class="pvs-column">
+                  <h4 class="pvs-column-header">Move Ordering</h4>
+                  <div><input type="checkbox" id="white-use-mvvlva" class="engine-option" data-color="white" data-field="useMVVLVA" checked /><label for="white-use-mvvlva" class="label-checkbox" title="Most Valuable Victim - Least Valuable Aggressor (Capture Sorting)">MVV-LVA</label></div>
+                  <div id="white-tt-container"><input type="checkbox" id="white-use-tt" class="engine-option" data-color="white" data-field="useTT" checked /><label for="white-use-tt" class="label-checkbox" title="Transposition Table">TT (Transp. Table)</label></div>
+                  <div><input type="checkbox" id="white-use-pst" class="engine-option" data-color="white" data-field="usePST" checked /><label for="white-use-pst" class="label-checkbox" title="Piece-Square Tables (Positional Knowledge)">PST (Positional)</label></div>
+                  <div><input type="checkbox" id="white-use-killers" class="engine-option" data-color="white" data-field="useKillers" checked /><label for="white-use-killers" class="label-checkbox" title="Killer Moves (Beta-Cutoffs from Sibling Nodes)">Killers</label></div>
+                  <div><input type="checkbox" id="white-use-history" class="engine-option" data-color="white" data-field="useHistory" checked /><label for="white-use-history" class="label-checkbox" title="History & Butterfly Heuristics">History/Butterfly</label></div>
+                </div>
+                <div class="pvs-column">
+                  <h4 class="pvs-column-header">Lossy Pruning</h4>
+                  <div><input type="checkbox" id="white-use-rfp" class="engine-option" data-color="white" data-field="useRFP" checked /><label for="white-use-rfp" class="label-checkbox" title="Reverse Futility Pruning (Static Null Move Pruning)">RFP (Rev. Futility)</label></div>
+                  <div><input type="checkbox" id="white-use-ffp" class="engine-option" data-color="white" data-field="useFFP" checked /><label for="white-use-ffp" class="label-checkbox" title="Forward Futility Pruning">FFP (Fwd. Futility)</label></div>
+                  <div><input type="checkbox" id="white-use-lmr" class="engine-option" data-color="white" data-field="useLMR" checked /><label for="white-use-lmr" class="label-checkbox" title="Late Move Reduction">LMR (Late Move Red.)</label></div>
+                  <div><input type="checkbox" id="white-use-lmp" class="engine-option" data-color="white" data-field="useLMP" checked /><label for="white-use-lmp" class="label-checkbox" title="Late Move Pruning">LMP (Late Move Pr.)</label></div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- White Actions -->
+      <div id="white-actions" class="action-section">
+        <!-- Human Actions -->
+        <div id="white-human-controls" style="display: none;">
+          <button id="white-suggest-move">Suggest Move</button>
+          <button id="white-undo-move">Undo Move</button>
+        </div>
+        <!-- AI Actions -->
+        <div id="white-ai-controls">
+          <button id="white-start-ai" class="start">Start</button>
+          <button id="white-pause-ai" class="pause">Pause</button>
+        </div>
+      </div>
+
+      <div class="console-container">
+        <div class="console-header">
+          <span>White SQL Console</span>
+          <div class="console-controls">
+            <button class="btn-toggle-console" data-target="white" title="Toggle Console">Mute</button>
+            <button class="btn-copy-console" data-target="white-console" title="Copy SQL">Copy</button>
+          </div>
+        </div>
+        <div id="white-console" class="console-output"></div>
+      </div>
+    </div>
+
+    <!-- CENTER COLUMN: BOARD & STATUS -->
+    <div class="center-column">
+      <!-- Header with Brand Logo -->
+      <div class="header-container">
+        <img src="img/quackmate_logo_128.png" alt="Quack-Mate Logo" />
+        <h1>
+          Quack-Mate <span>SQL Chess Engine</span>
+        </h1>
+      </div>
+
+      <div id="board1" class="board-container"></div>
+
+      <!-- History Controls -->
+      <div class="history-controls-wrapper">
+        <button id="btn-copy-history">Copy Game History</button>
+        <button id="btn-reset">Reset</button>
+        <button id="btn-settings" class="btn-secondary">Settings</button>
+        <button id="btn-help" class="btn-secondary">Help</button>
+        <div id="engine-status" class="engine-status-text"></div>
+      </div>
+
+      <div class="stats-grid">
+        <!-- Left Stats: White -->
+        <div class="player-stats white">
+          <div class="stats-header">
+            <div class="header-main">
+              <div class="move-line">
+                <strong>Last:</strong> <span id="last_white" class="last-move-link"></span>
+              </div>
+              <div id="white-version-info" class="version-info"></div>
+            </div>
+            <div class="move-count-label">Move: <span id="move_count_white">0</span></div>
+          </div>
+          <div class="captured-area">
+              <span id="captured_by_white"></span>
+          </div>
+          <div class="stats-row">
+            <div class="stats-item">
+              <strong>Current</strong>
+              <div id="status_white" class="stats-value">-</div>
+            </div>
+            <div class="stats-item stats-item-bordered">
+              <strong>Average</strong>
+              <div id="avg_white" class="stats-value">-</div>
+            </div>
+          </div>
+          <div class="player-status">
+            <span id="player_status_white">Idle</span>
+          </div>
+        </div>
+
+        <!-- Right Stats: Black -->
+        <div class="player-stats black">
+          <div class="stats-header">
+            <div class="header-main">
+              <div class="move-line">
+                <strong>Last:</strong> <span id="last_black" class="last-move-link"></span>
+              </div>
+              <div id="black-version-info" class="version-info"></div>
+            </div>
+            <div class="move-count-label">Move: <span id="move_count_black">0</span></div>
+          </div>
+          <div class="captured-area">
+              <span id="captured_by_black"></span>
+          </div>
+          <div class="stats-row">
+            <div class="stats-item">
+              <strong>Current</strong>
+              <div id="status_black" class="stats-value">-</div>
+            </div>
+            <div class="stats-item stats-item-bordered">
+              <strong>Average</strong>
+              <div id="avg_black" class="stats-value">-</div>
+            </div>
+          </div>
+          <div class="player-status">
+            <span id="player_status_black">Idle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: BLACK CONFIG -->
+    <div class="config-column right">
+      <!-- Black Settings -->
+      <div class="config-row">
+        <label>Player:</label>
+        <select id="black-player-type" class="config-input engine-option" data-color="black" data-field="player">
+          <option value="human">Human</option>
+          <option value="duckdb_wasm" selected>DuckDB WASM</option>
+          <option value="duckdb_native">DuckDB Native (Server)</option>
+          <option value="standard_js">Standard JS Engine</option>
+        </select>
+      </div>
+
+      <div id="black-ai-settings">
+        <div class="config-row">
+          <label>Strategy:</label>
+          <select id="black-strategy-select" class="config-input engine-option" data-color="black" data-field="strategy">
+            <option value="recursive" selected>Recursive CTE</option>
+            <option value="batched_pvs">Batched PVS</option>
+            <option value="minimax">Minimax (Standard JS)</option>
+          </select>
+        </div>
+
+        <div class="config-row">
+          <span id="black-depth-container" class="config-group">
+            <label>Max Depth:</label>
+            <input type="number" id="black-max-depth" min="1" max="10" value="3" class="config-input engine-option" data-color="black" data-field="maxDepth">
+          </span>
+
+          <span id="black-qs-depth-container" class="config-group" style="margin-left: 10px;">
+            <label class="label-auto">Max Depth QS:</label>
+            <input type="number" id="black-max-depth-qs" min="0" max="10" value="0" class="config-input engine-option" data-color="black" data-field="maxDepthQS">
+          </span>
+
+          <span id="black-threads-container" class="threads-container config-group" style="margin-left: 10px;">
+             <label class="label-auto">Threads:</label>
+             <input type="number" id="black-max-threads" min="1" max="128" value="1" class="config-input engine-option" data-color="black" data-field="maxThreads">
+          </span>
+        </div>
+
+
+
+        <div id="black-ab-container" class="config-row" style="display: none;">
+          <input type="checkbox" id="black-use-ab" class="engine-option" data-color="black" data-field="useAlphaBeta" checked />
+          <label for="black-use-ab" class="label-checkbox">Alpha-Beta Pruning</label>
+        </div>
+
+        <div id="black-pvs-optimizations" class="optimizations-container" style="display: none; margin-bottom: 8px; width: 100%;">
+          <details style="width: 100%;">
+            <summary class="pvs-summary">Optimisations</summary>
+            <div class="pvs-details-content">
+              <div class="pvs-columns-container">
+                <div class="pvs-column">
+                  <h4 class="pvs-column-header">Move Ordering</h4>
+                  <div><input type="checkbox" id="black-use-mvvlva" class="engine-option" data-color="black" data-field="useMVVLVA" checked /><label for="black-use-mvvlva" class="label-checkbox" title="Most Valuable Victim - Least Valuable Aggressor (Capture Sorting)">MVV-LVA</label></div>
+                  <div id="black-tt-container"><input type="checkbox" id="black-use-tt" class="engine-option" data-color="black" data-field="useTT" checked /><label for="black-use-tt" class="label-checkbox" title="Transposition Table">TT (Transp. Table)</label></div>
+                  <div><input type="checkbox" id="black-use-pst" class="engine-option" data-color="black" data-field="usePST" checked /><label for="black-use-pst" class="label-checkbox" title="Piece-Square Tables (Positional Knowledge)">PST (Positional)</label></div>
+                  <div><input type="checkbox" id="black-use-killers" class="engine-option" data-color="black" data-field="useKillers" checked /><label for="black-use-killers" class="label-checkbox" title="Killer Moves (Beta-Cutoffs from Sibling Nodes)">Killers</label></div>
+                  <div><input type="checkbox" id="black-use-history" class="engine-option" data-color="black" data-field="useHistory" checked /><label for="black-use-history" class="label-checkbox" title="History & Butterfly Heuristics">History/Butterfly</label></div>
+                </div>
+                <div class="pvs-column">
+                  <h4 class="pvs-column-header">Lossy Pruning</h4>
+                  <div><input type="checkbox" id="black-use-rfp" class="engine-option" data-color="black" data-field="useRFP" checked /><label for="black-use-rfp" class="label-checkbox" title="Reverse Futility Pruning (Static Null Move Pruning)">RFP (Rev. Futility)</label></div>
+                  <div><input type="checkbox" id="black-use-ffp" class="engine-option" data-color="black" data-field="useFFP" checked /><label for="black-use-ffp" class="label-checkbox" title="Forward Futility Pruning">FFP (Fwd. Futility)</label></div>
+                  <div><input type="checkbox" id="black-use-lmr" class="engine-option" data-color="black" data-field="useLMR" checked /><label for="black-use-lmr" class="label-checkbox" title="Late Move Reduction">LMR (Late Move Red.)</label></div>
+                  <div><input type="checkbox" id="black-use-lmp" class="engine-option" data-color="black" data-field="useLMP" checked /><label for="black-use-lmp" class="label-checkbox" title="Late Move Pruning">LMP (Late Move Pr.)</label></div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Black Actions -->
+      <div id="black-actions" class="action-section">
+        <!-- Human Actions -->
+        <div id="black-human-controls" style="display: none;">
+          <button id="black-suggest-move">Suggest Move</button>
+          <button id="black-undo-move">Undo Move</button>
+        </div>
+        <!-- AI Actions -->
+        <div id="black-ai-controls">
+          <button id="black-start-ai" class="start">Start</button>
+          <button id="black-pause-ai" class="pause">Pause</button>
+        </div>
+      </div>
+
+      <div class="console-container">
+        <div class="console-header">
+          <span>Black SQL Console</span>
+          <div class="console-controls">
+            <button class="btn-toggle-console" data-target="black" title="Toggle Console">Mute</button>
+            <button class="btn-copy-console" data-target="black-console" title="Copy SQL">Copy</button>
+          </div>
+        </div>
+        <div id="black-console" class="console-output"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Reset Modal -->
+  <div id="reset-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Reset Game</h2>
+      </div>
+      <div class="modal-body">
+        <p>This will clear the current board and history.</p>
+        <div class="fen-input-wrapper">
+          <label for="reset-fen-input">Starting FEN (optional):</label>
+          <input type="text" id="reset-fen-input" placeholder="e.g. rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-cancel-reset" class="btn-secondary">Cancel</button>
+        <button id="modal-confirm-reset" class="btn-danger">Reset Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Global Settings</h2>
+      </div>
+      <div class="modal-body">
+        <div class="config-row">
+          <label class="label-auto">DuckDB WASM Version:</label>
+          <select id="wasm-version-select" class="config-input">
+            <option value="loading">Loading versions...</option>
+          </select>
+        </div>
+        <p style="font-size: 0.8em; color: #888; margin-top: 10px;">
+          Changing the WASM version will take effect when the engine is next initialized (e.g., after clicking <strong>Reset Game</strong> or switching player types).
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-close-settings" class="btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 600px; max-width: 95%;">
+      <div class="modal-header">
+        <h2>About Quack-Mate</h2>
+      </div>
+      <div class="modal-body" style="font-size: 0.95rem; line-height: 1.6;">
+        <section>
+          <h3 style="margin-top: 0;">What is Quack-Mate?</h3>
+          <p>Quack-Mate is an experimental chess engine that performs move generation and evaluation directly within <strong>DuckDB</strong> using SQL. It explores the feasibility of using analytical databases for game-tree search.</p>
+        </section>
+
+        <section id="help-restricted-section" style="margin-top: 20px;">
+          <h3>&#9888; Restricted Mode</h3>
+          <p>You are currently playing using a WASM DuckDB engine in <strong>Restricted Mode</strong>. To ensure browser stability in this static environment, search depth is capped at 4 and threads at 2.</p>
+          <p>The WASM engine is limited to 4 GB of RAM. Out of memory errors may still occur, especially using the Recursive CTE strategy.</p>
+          <p>To experience the full power of Quack-Mate (including higher depths and the high-performance Native DuckDB backend), please visit the <a href="https://github.com/swingbit/quackmate" target="_blank">GitHub Repository</a> and run it locally.</p>
+        </section>
+
+        <section style="margin-top: 20px;">
+          <h3>Engine Options</h3>
+          <ul style="padding-left: 20px;">
+            <li><strong>Max Depth:</strong> How many plies ahead the AI calculates.</li>
+            <li><strong>Max Depth QS:</strong> Quiescence Search depth: how many plies on top of Max Depth the AI calculates to stabilize "noisy" positions involving captures.</li>
+            <li><strong>Strategy:</strong> Different SQL approaches to search (Recursive CTE is impractical for above Max Depth 3).</li>
+            <li><strong>Optimisations:</strong> Heuristics like Alpha-Beta pruning and Transposition Tables (TT) that help the engine search faster.</li>
+          </ul>
+        </section>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-close-help" class="btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+
+    import { init } from './src/quackmate-ui.js'
+    async function run() {
+      await init();
+    }
+
+    run();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,74 @@
+# Quackmate
+
+A Chess Engine written entirely in SQL (DuckDB).
+
+## Overview
+
+Quackmate is a proof-of-concept chess engine where the core logic — move generation, board state management, and search algorithms — is implemented entirely using SQL queries. The project explores the boundaries of relational databases by hosting a fully-fledged chess engine inside [DuckDB](https://duckdb.org/) operating on both [browser-based WebAssembly](https://duckdb.org/docs/current/clients/wasm/overview) and high-performance native server instances.
+
+---
+
+## Features
+
+- **Database-Centric State**: The chessboard state is stored and modified entirely inside DuckDB tables (`piece_bitboards` and `game_state`).
+- **SQL Move Generation**: Generates all pseudo-legal and legal moves using relational joins and bitwise operations on `UBIGINT` bitboards.
+- **Dual Search Implementations**:
+  - **Batched PVS (Principal Variation Search)**: Iterative deepening with Late Move Reduction (LMR), Late Move Pruning (LMP), MVV-LVA move ordering, and a Zobrist-hashed Transposition Table.
+  - **Recursive CTE Search**: An elegant search strategy that expands and evaluates the minimax game tree using a single recursive SQL query.
+- **Cross-Platform Adaptability**:
+  - **DuckDB WASM**: Runs fully sandboxed in the browser main-thread/web-workers. WASM is currently limited to 4 GB RAM.
+  - **DuckDB Native (Server)**: Executes engine queries natively over a REST API. No memory limitations.
+
+---
+
+## Repository Structure
+
+- `src/sql/` — **The Brain**<br/>
+  Contains core SQL query builders (`schema.js`, `moves.js`, `eval.js`, `search.js`) that formulate schemas, precomputes, move generation, and evaluation queries.
+- `src/quackmate.js` — **Engine Orchestration**<br/>
+  Coordinates game loops, search frontiers, and table transactions.
+- `src/quackmate-node.js` / `src/quackmate-wasm.js` — **Environment Adapters**<br/>
+  Wrapper modules for native Node and browser Wasm bindings.
+- `src/quackmate-ui.js` — **Interactive Interface**<br/>
+  Front-end chessboard controller and dynamic engine factory.
+- `quackmate-server.sh` — **Launcher Script**<br/>
+  A parametric command-line tool to initialize static or API servers.
+
+---
+
+## How to Run & Develop
+
+### 1. Installation
+Install project dependencies from the root directory:
+```bash
+npm install
+```
+
+### 2. Launching the Server
+Boot the servers using the unified developer launcher:
+```bash
+# Starts both the static web server (Port 8000) and native DuckDB API (Port 3001)
+./quackmate-server.sh node
+
+# Or customize server ports
+./quackmate-server.sh node --http-port 9000 --api-http-port 4000
+
+# Or start a client-only static HTTP server (runs only WASM/JS engines)
+./quackmate-server.sh static --http-port 8080
+```
+
+### 3. Playing in the Browser
+Open `http://localhost:8000` (or your custom port) in your browser. Under the **Player** dropdown menus, select your preferred engine:
+* **DuckDB WASM**: Runs inside the browser's WebAssembly sandbox.
+* **DuckDB Native (Server)**: Executes moves on the local native server over REST.
+* **Standard JS Engine**: A pure Javascript depth-first search engine, using the same move generation logic, optimisations and search algorithm as the SQL engine.
+
+### 4. Custom Server API Configuration
+If you run the developer server on a custom port, update the `REMOTE_ENGINE_URL` in `utils/config.js`:
+```javascript
+export const CONFIG = {
+    DUCKDB_WASM_VERSION: '1.33.1-dev37.0',
+    REMOTE_ENGINE_URL: 'http://localhost:4000' // Matches your custom API port
+};
+```
+The browser UI will automatically parse this and direct its REST requests to the targeted native backend.

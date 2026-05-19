@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "dependencies": {
+    "body-parser": "^2.2.1",
+    "chess.js": "^1.4.0",
+    "cors": "^2.8.5",
+    "@duckdb/node-api": "latest",
+    "express": "^5.2.1",
+    "monetdb": "^2.2.0",
+    "node-fetch": "^3.3.2"
+  }
+}
