@@ -6,6 +6,8 @@ A Chess Engine written entirely in SQL (DuckDB).
 
 Quackmate is a proof-of-concept chess engine where the core logic — move generation, board state management, and search algorithms — is implemented entirely using SQL queries. The project explores the boundaries of relational databases by hosting a fully-fledged chess engine inside [DuckDB](https://duckdb.org/) operating on both [browser-based WebAssembly](https://duckdb.org/docs/current/clients/wasm/overview) and high-performance native server instances.
 
+To read more about the technical details, architectural design decisions, and performance benchmarks of Quack-Mate, check out this [blog post](https://swingbit.github.io/quackmate/).
+
 ---
 
 ## Features
