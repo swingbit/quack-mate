@@ -1,11 +1,11 @@
 /**
- * quackmate-standard.worker.js
+ * quackmate-js-dfs.worker.js
  * 
  * Web Worker for running the Standard JS Chess Engine off the main thread.
  * Handles 'init' and 'search' messages.
  */
 
-import { init, find_best_move } from './quackmate-standard.js';
+import { init, find_best_move } from './quackmate-js-dfs.js';
 
 let isInitialized = false;
 

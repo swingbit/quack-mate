@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import { find_best_move, init, close } from '../src/quackmate-node.js';
-import { find_best_move as find_best_move_std } from '../src/quackmate-standard.js';
+import { find_best_move as find_best_move_std } from '../src/quackmate-js-dfs.js';
 import { DEFAULT_OPTIONS } from '../src/quackmate-common.js';
 
 const __filename = fileURLToPath(import.meta.url);

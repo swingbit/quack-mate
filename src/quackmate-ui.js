@@ -93,7 +93,7 @@ class StandardEngineAdapter {
         this.initialized = false;
         this.logs = [];
         this.loggerCallback = null;
-        this.worker = new Worker('src/quackmate-standard.worker.js', { type: 'module' });
+        this.worker = new Worker('src/quackmate-js-dfs.worker.js', { type: 'module' });
         this.pendingRequests = new Map();
         this.msgId = 0;
         

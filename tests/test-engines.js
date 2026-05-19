@@ -1,5 +1,5 @@
 import { init as initNode, EngineInstance } from '../src/quackmate-node.js';
-import { init as initStd, find_best_move as findBestMoveStd } from '../src/quackmate-standard.js';
+import { init as initStd, find_best_move as findBestMoveStd } from '../src/quackmate-js-dfs.js';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const MIDGAME_FEN = 'r1bqk2r/pppp1ppp/2n2n2/4p3/1bB1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 4';
@@ -48,20 +48,21 @@ async function verifyPosition(nodeInstance, positionName, fen, depth, customOpti
         throw new Error(`Move mismatch on ${positionName}! SQL got ${nodeMove}, JS got ${stdMove}`);
     }
     const isWhiteTurn = fen.split(' ')[1] === 'w';
-    const normalizedStdScore = stdRes.score * (isWhiteTurn ? 1 : -1);
+    const isBatchedPVS = sqlOptions.strategy === 'batched_pvs';
+    const expectedScore = isBatchedPVS ? stdRes.score : (stdRes.score * (isWhiteTurn ? 1 : -1));
     
     const isNodeMate = nodeRes.score === -Infinity || nodeRes.score === Infinity || Math.abs(nodeRes.score) >= 800000;
-    const isStdMate = normalizedStdScore === -Infinity || normalizedStdScore === Infinity || Math.abs(normalizedStdScore) >= 800000;
+    const isStdMate = expectedScore === -Infinity || expectedScore === Infinity || Math.abs(expectedScore) >= 800000;
     
-    let scoresMatch = nodeRes.score === normalizedStdScore;
+    let scoresMatch = nodeRes.score === expectedScore;
     if (isNodeMate && isStdMate) {
         const signNode = nodeRes.score === -Infinity ? -1 : (nodeRes.score === Infinity ? 1 : Math.sign(nodeRes.score));
-        const signStd = normalizedStdScore === -Infinity ? -1 : (normalizedStdScore === Infinity ? 1 : Math.sign(normalizedStdScore));
+        const signStd = expectedScore === -Infinity ? -1 : (expectedScore === Infinity ? 1 : Math.sign(expectedScore));
         scoresMatch = signNode === signStd;
     }
     
     if (!scoresMatch) {
-        throw new Error(`Score mismatch on ${positionName}! SQL evaluated ${nodeRes.score}, JS evaluated ${stdRes.score} (Normalized: ${normalizedStdScore})`);
+        throw new Error(`Score mismatch on ${positionName}! SQL evaluated ${nodeRes.score}, JS evaluated ${stdRes.score} (Expected: ${expectedScore})`);
     }
 
     console.log(`✓ Parity confirmed: Engine outputs match perfectly.`);

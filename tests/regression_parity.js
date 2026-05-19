@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { EngineInstance } from '../src/quackmate-node.js';
-import { init as initStd, find_best_move as findBestMoveStd } from '../src/quackmate-standard.js';
+import { init as initStd, find_best_move as findBestMoveStd } from '../src/quackmate-js-dfs.js';
 
 const FEN = 'rn1qk2r/1ppbbppp/p3p3/1N1p2Bn/Q1PP4/5N2/PP2PPPP/R3KB1R w KQkq - 0 1';
 
