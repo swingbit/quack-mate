@@ -1425,23 +1425,34 @@ export async function init() {
   });
 
   // Check for local server availability
-  try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000);
-      const response = await fetch(`${CONFIG.REMOTE_ENGINE_URL || 'http://localhost:3001'}/player_white/version`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (response.ok) {
-          // Native Server is available! Set both players to DuckDB Native
-          players.white.player = 'duckdb_native';
-          players.black.player = 'duckdb_native';
-          $('#white-player-type').val('duckdb_native');
-          $('#black-player-type').val('duckdb_native');
-          updateStrategyOptions('white');
-          updateStrategyOptions('black');
-      } else {
-          isRestrictedMode = true;
+  let serverAvailable = false;
+  const isLocalHost = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' || 
+                       window.location.hostname === '[::1]';
+
+  if (isLocalHost) {
+      try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 1000);
+          const response = await fetch(`${CONFIG.REMOTE_ENGINE_URL || 'http://localhost:3001'}/player_white/version`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (response.ok) {
+              serverAvailable = true;
+          }
+      } catch (e) {
+          // ignore
       }
-  } catch (e) {
+  }
+
+  if (serverAvailable) {
+      // Native Server is available! Set both players to DuckDB Native
+      players.white.player = 'duckdb_native';
+      players.black.player = 'duckdb_native';
+      $('#white-player-type').val('duckdb_native');
+      $('#black-player-type').val('duckdb_native');
+      updateStrategyOptions('white');
+      updateStrategyOptions('black');
+  } else {
       isRestrictedMode = true;
   }
 
