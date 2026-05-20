@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="img/quackmate_logo_256.png" width="180" alt="Quackmate Logo">
-</p>
+![Quack-Mate Banner](img/quackmate.jpg)
 
 # Quackmate
 
@@ -80,5 +78,6 @@ export const CONFIG = {
 The browser UI will automatically parse this and direct its REST requests to the targeted native backend.
 
 ## Assets & Licenses
-- The project logo was generated using Google Gemini and cropped for use. 
-- While the software code is licensed under the MIT License, the logo asset itself is derived from AI generation and is distributed freely as public domain / CC0.
+- The **Project Banner** at the top of this README was generated using Google Gemini.
+- The **Project Logo** (visible inside the web application) was cropped directly out of that main project banner.
+- These graphic assets are derived from AI generation and are distributed freely under the public domain / CC0.
