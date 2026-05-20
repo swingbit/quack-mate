@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="img/quackmate_logo_256.png" width="180" alt="Quackmate Logo">
+</p>
+
 # Quackmate
 
 A Chess Engine written entirely in SQL (DuckDB).
@@ -74,3 +78,7 @@ export const CONFIG = {
 };
 ```
 The browser UI will automatically parse this and direct its REST requests to the targeted native backend.
+
+## Assets & Licenses
+- The project logo was generated using Google Gemini and cropped for use. 
+- While the software code is licensed under the MIT License, the logo asset itself is derived from AI generation and is distributed freely as public domain / CC0.
