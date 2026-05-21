@@ -8,7 +8,7 @@
   <title>Quack-mate</title>
   <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
     integrity="sha384-q94+BZtLrkL1/ohfjR8c6L+A6qzNH9R2hBLwyoAfu3i/WCvQjzL2RQJ3uNHDISdU" crossorigin="anonymous">
-  <link rel="stylesheet" href="src/quackmate.css" />
+  <link rel="stylesheet" href="src/quackmate.css?v=1.0.1" />
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"
     integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous">
     </script>
@@ -416,13 +416,14 @@
   </div>
 
   <script type="module">
-
-    import { init } from './src/quackmate-ui.js'
-    async function run() {
-      await init();
-    }
-
-    run();
+    const version = new Date().getTime();
+    import(`./src/quackmate-ui.js?v=${version}`)
+      .then(module => {
+        module.init();
+      })
+      .catch(err => {
+        console.error("Failed to load Quack-Mate UI:", err);
+      });
   </script>
 </body>
 
