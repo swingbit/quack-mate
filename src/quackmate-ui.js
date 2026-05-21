@@ -127,8 +127,7 @@ class StandardEngineAdapter {
 
     async findBestMove(fen, options) {
         const engineOpts = {
-            maxDepth: options.maxDepth,
-            useAlphaBeta: options.useAlphaBeta
+            ...options
         };
         
         const start = performance.now();
