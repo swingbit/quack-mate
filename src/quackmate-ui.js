@@ -954,9 +954,13 @@ function initUI() {
 
   if (isRestrictedMode) {
       console.log("Restricted Mode: Server not found. Capping resources.");
-      const $nativeOptions = $('option[value="duckdb_native"]');
-      $nativeOptions.prop('disabled', true);
-      $nativeOptions.text($nativeOptions.text() + " (Unavailable)");
+      $('option[value="duckdb_native"]').each(function() {
+          const $opt = $(this);
+          $opt.prop('disabled', true);
+          if (!$opt.text().includes("(Unavailable)")) {
+              $opt.text($opt.text() + " (Unavailable)");
+          }
+      });
       
       // Cap initial UI values
       $('#white-max-threads, #black-max-threads').attr('max', RESTRICTED_MODE_LIMITS.maxThreads);
