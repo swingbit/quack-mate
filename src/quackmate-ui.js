@@ -1380,6 +1380,14 @@ async function fetchWasmVersions() {
 }
 
 export async function init() {
+  // Handle minimum resolution display values
+  const updateResolutionDims = () => {
+    $('#current-width').text(window.innerWidth);
+    $('#current-height').text(window.innerHeight);
+  };
+  window.addEventListener('resize', updateResolutionDims);
+  updateResolutionDims();
+
   // Attach UI Event Listeners immediately
   $('#btn-settings').on('click', function () {
     console.log("Settings button clicked");

@@ -37,7 +37,8 @@ body {
   margin-bottom: 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 8px 12px;
+  flex-wrap: wrap;
 }
 
 .config-row label {
@@ -674,3 +675,94 @@ button.pause {
 .optimizations-container details {
   width: 100%;
 }
+
+/* Resolution Overlay */
+.resolution-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.96); /* Elegant, dark slate blue backdrop */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #f8fafc;
+  z-index: 10000;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 2rem;
+  box-sizing: border-box;
+  font-family: 'Open Sans', sans-serif;
+  transition: opacity 0.3s ease;
+}
+
+.resolution-container {
+  background: rgba(30, 41, 59, 0.7); /* Darker slate card */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 3rem 2rem;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  max-width: 400px;
+  width: 100%;
+}
+
+.resolution-icon {
+  font-size: 3rem;
+  margin-bottom: 1.5rem;
+  animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+.resolution-title {
+  color: #38bdf8; /* Sleek sky blue accent */
+  font-size: 1.8rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.resolution-message {
+  color: #cbd5e1; /* Soft gray for readability */
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.resolution-message strong {
+  color: #f8fafc;
+}
+
+.resolution-dims {
+  font-family: monospace;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #94a3b8;
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.resolution-dims span {
+  font-weight: bold;
+  color: #38bdf8;
+}
+
+@media (max-width: 1299px) or (max-height: 949px) {
+  .resolution-overlay {
+    display: flex !important;
+  }
+  .main-container, .modal-overlay {
+    display: none !important;
+  }
+}
+

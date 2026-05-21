@@ -59,12 +59,12 @@
             <input type="number" id="white-max-depth" min="1" max="10" value="3" class="config-input engine-option" data-color="white" data-field="maxDepth">
           </span>
           
-          <span id="white-qs-depth-container" class="config-group" style="margin-left: 10px;">
+          <span id="white-qs-depth-container" class="config-group">
             <label class="label-auto">Max Depth QS:</label>
             <input type="number" id="white-max-depth-qs" min="0" max="10" value="0" class="config-input engine-option" data-color="white" data-field="maxDepthQS">
           </span>
 
-          <span id="white-threads-container" class="threads-container config-group" style="margin-left: 10px;">
+          <span id="white-threads-container" class="threads-container config-group">
              <label class="label-auto">Threads:</label>
              <input type="number" id="white-max-threads" min="1" max="128" value="1" class="config-input engine-option" data-color="white" data-field="maxThreads">
           </span>
@@ -240,12 +240,12 @@
             <input type="number" id="black-max-depth" min="1" max="10" value="3" class="config-input engine-option" data-color="black" data-field="maxDepth">
           </span>
 
-          <span id="black-qs-depth-container" class="config-group" style="margin-left: 10px;">
+          <span id="black-qs-depth-container" class="config-group">
             <label class="label-auto">Max Depth QS:</label>
             <input type="number" id="black-max-depth-qs" min="0" max="10" value="0" class="config-input engine-option" data-color="black" data-field="maxDepthQS">
           </span>
 
-          <span id="black-threads-container" class="threads-container config-group" style="margin-left: 10px;">
+          <span id="black-threads-container" class="threads-container config-group">
              <label class="label-auto">Threads:</label>
              <input type="number" id="black-max-threads" min="1" max="128" value="1" class="config-input engine-option" data-color="black" data-field="maxThreads">
           </span>
@@ -387,6 +387,22 @@
       </div>
       <div class="modal-footer">
         <button id="modal-close-help" class="btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+  <!-- Screen Resolution Overlay -->
+  <div class="resolution-overlay">
+    <div class="resolution-container">
+      <div class="resolution-icon">📐</div>
+      <h2 class="resolution-title">Screen Too Small</h2>
+      <p class="resolution-message">
+        Quack-Mate requires a minimum window size of <strong>1300px × 950px</strong> to function properly.<br/>
+        Please enlarge your browser window or use a desktop device to continue.<br/>
+        Alterntively, you can increase re resolution by zooming out in your browser.
+        You can do this by pressing <kbd>Ctrl</kbd> <kbd>-</kbd> (<kbd>Cmd</kbd> <kbd>-</kbd> on Mac).
+      </p>
+      <div class="resolution-dims">
+        Current size: <span id="current-width">?</span>px × <span id="current-height">?</span>px
       </div>
     </div>
   </div>
