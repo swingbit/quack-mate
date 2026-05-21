@@ -38,7 +38,7 @@ export const RESTRICTED_MODE_LIMITS = {
 };
 
 // =============================================================================
-// GLOBAL ENGINE CONSTANTS (Shared between SQL and Standard JS engines)
+// GLOBAL ENGINE CONSTANTS (Shared between SQL and DFS JS engines)
 // =============================================================================
 
 // Bitboard Masks (U64 as decimal strings for SQL injection, used as BigInt in JS)
