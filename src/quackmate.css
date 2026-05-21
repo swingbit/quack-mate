@@ -757,7 +757,7 @@ button.pause {
   color: #38bdf8;
 }
 
-@media (max-width: 1299px) or (max-height: 949px) {
+@media (max-width: 1299px) or (max-height: 899px) {
   .resolution-overlay {
     display: flex !important;
   }
