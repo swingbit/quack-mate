@@ -17,7 +17,11 @@ To read more about the technical details, architectural design decisions, and pe
 - **Database-Centric State**: The chessboard state is stored and modified entirely inside DuckDB tables.
 - **SQL Move Generation**: Generates all pseudo-legal and legal moves (except en-passant) using relational joins and bitwise operations on `UBIGINT` bitboards.
 - **Dual Search Implementations**:
-  - **Batched PVS (Principal Variation Search)**: Iterative deepening with Late Move Reduction (LMR), Late Move Pruning (LMP), MVV-LVA move ordering, and a Zobrist-hashed Transposition Table.
+  - **Batched PVS (Principal Variation Search)**: A highly-optimized search framework utilizing:
+    - **Search Strategies**: Principal Variation Search (PVS) with **Iterative Deepening** and **Quiescence Search (QS)** (with Stand-pat delta pruning).
+    - **Pruning & Reductions**: Alpha-Beta pruning, **Reverse Futility Pruning (RFP)**, **Forward Futility Pruning (FFP)**, **Late Move Reduction (LMR)**, and **Late Move Pruning (LMP)**.
+    - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Attacker), **Piece-Square Tables (PST)**, **Killer Moves**, and the **History Heuristic**.
+    - **Transposition Tables**: Seeded **Zobrist Hashing** for stable position keys, utilizing a transposition table for PV-move ordering.
   - **Recursive CTE Search**: An elegant search strategy that expands and evaluates the minimax game tree using a single recursive SQL query. Exhaustive search: no pruning performed.
 - **Cross-Platform Adaptability**:
   - **DuckDB WASM**: Runs fully sandboxed in the browser main-thread/web-workers. WASM is currently limited to 4 GB RAM.
