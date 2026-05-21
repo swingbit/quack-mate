@@ -620,6 +620,7 @@ button.pause {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .header-container h1 span {
@@ -631,6 +632,33 @@ button.pause {
   padding: 2px 6px;
   text-transform: none;
   letter-spacing: 0;
+}
+
+/* Responsive Header Scaling to prevent wrapping and save vertical space */
+@media (max-width: 1400px) {
+  .header-container h1 {
+    font-size: 1.6rem;
+  }
+  .header-container img {
+    width: 64px;
+    height: 64px;
+    margin-top: -4px;
+    margin-bottom: -4px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .header-container h1 {
+    font-size: 1.35rem;
+  }
+  .header-container h1 span {
+    font-size: 0.75rem;
+    padding: 1px 4px;
+  }
+  .header-container img {
+    width: 50px;
+    height: 50px;
+  }
 }
 
 /* PVS Columns Styling */
@@ -757,11 +785,18 @@ button.pause {
   color: #38bdf8;
 }
 
-@media (max-width: 1299px) or (max-height: 899px) {
+@media (max-width: 1199px) or (max-height: 639px) {
   .resolution-overlay {
     display: flex !important;
   }
   .main-container, .modal-overlay {
+    display: none !important;
+  }
+}
+
+/* Hide detailed profiling metrics on small heights to prevent vertical scrolling */
+@media (max-height: 850px) {
+  .profiling-stats {
     display: none !important;
   }
 }

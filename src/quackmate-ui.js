@@ -1115,16 +1115,14 @@ function updateStatsUI(turn, profiling) {
 
   const avgTime = Math.round(p.stats.time / p.stats.moves);
   const avgNodes = Math.round(p.stats.nodes / p.stats.moves);
-  const avgNps = p.stats.search_time > 0 ? Math.round(p.stats.nodes / (p.stats.search_time / 1000)) : 0;
 
   if (p.player === 'human') {
-    // For human average, nodes/nps don't make sense, just show time
+    // For human average, nodes don't make sense, just show time
     $avgEl.html(`<div>Time: ${formatTime(avgTime)}</div>`);
   } else {
     $avgEl.html(`
        <div>Time: ${formatTime(avgTime)}</div>
        <div>Nodes: ${avgNodes.toLocaleString()}</div>
-       <div>NPS: ${avgNps.toLocaleString()}</div>
      `);
   }
 
@@ -1193,16 +1191,13 @@ function processMoveResult(data, duration, turn) {
     players[turn].stats.search_time += (data.search_duration || duration);
     players[turn].stats.nodes += (data.nodes || 0);
 
-    // Use search_duration if provided by engine for more accurate NPS, fallback to total duration
     const $statEl = turn === 'white' ? $status_white : $status_black;
     const effectiveDuration = data.search_duration || duration;
-    const nps = data.nodes ? Math.round(data.nodes / (effectiveDuration / 1000)) : 0;
 
     $statEl.html(`
        <div class="stats-content">
            <div>Time: ${formatTime(duration)}</div>
            <div>Nodes: ${(data.nodes || 0).toLocaleString()}</div>
-           <div>NPS: ${nps.toLocaleString()}</div>
        </div>
     `);
 
