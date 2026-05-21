@@ -351,7 +351,13 @@ class EngineFactory {
         const player = players[color];
         let engine;
         
-        switch (player.player) {
+        let playerType = player.player;
+        if (playerType === 'human') {
+            // Human Suggest Move fallback: use WASM engine or Native server based on availability
+            playerType = isRestrictedMode ? 'duckdb_wasm' : 'duckdb_native';
+        }
+        
+        switch (playerType) {
             case 'duckdb_wasm':
                 engine = new WasmEngineAdapter();
                 break;
@@ -365,7 +371,7 @@ class EngineFactory {
                 return null;
         }
 
-        if (player.player !== 'standard_js') {
+        if (playerType !== 'standard_js') {
             engine.setQueryLogger((sql) => logToPlayerConsole(color, sql));
         }
         
