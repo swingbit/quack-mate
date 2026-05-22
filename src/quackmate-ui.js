@@ -390,7 +390,7 @@ let move_history = [];
 // Player State
 const players = {
   white: {
-    player: 'duckdb_wasm',
+    player: 'human',
     running: false,
     engine: null,
     stats: { moves: 0, time: 0, search_time: 0, nodes: 0 },
@@ -1296,6 +1296,14 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
         $statEl.html(`<div>Time: ${formatTime(duration)}</div>`);
         
         updateStatsUI(justMovedColor);
+    }
+
+    // Auto-start Black if White makes the first move of the game
+    if (justMovedColor === 'white' && move_history.length === 1) {
+        if (players.black.player !== 'human' && !players.black.running) {
+            players.black.running = true;
+            updateStatus('black');
+        }
     }
 
     // Re-draw the board according to the received FEN (sanitize)
