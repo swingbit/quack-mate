@@ -867,6 +867,15 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
                 OR (prep.static_eval - ${getPieceValueCaseSQL('prep.captured_piece')} - ${CAPTURE_MARGIN} > ${pBeta})
             )
         )` : ''}
-    RETURNING 1;
+    ;
+    INSERT INTO attempted_expansions
+    SELECT DISTINCT parent_id 
+    FROM ${rawMovesTable} 
+    WHERE batch_id = ${batchId} AND is_processed = 0
+    EXCEPT SELECT id FROM attempted_expansions;
+
+    INSERT INTO non_mate_nodes
+    SELECT DISTINCT parent_id FROM ${targetFrontier}
+    EXCEPT SELECT id FROM non_mate_nodes;
     `;
 }

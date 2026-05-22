@@ -330,6 +330,10 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
     FROM ${sourceTable};
 
+    INSERT INTO attempted_expansions
+    SELECT id FROM search_space
+    EXCEPT SELECT id FROM attempted_expansions;
+
     -- 2a. Generate Moves (Materialize Correlated Subquery)
     -- OPTIMIZATION: Prioritize transposition table (TT) moves first during move ordering.
     
