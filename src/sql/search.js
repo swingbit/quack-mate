@@ -470,7 +470,7 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
         castling_rights, wK_sq, bK_sq, all_pieces,
-        is_repetition, board_hash, is_legal_check, is_check, static_eval
+        is_repetition, board_hash, is_legal_check, is_check, static_eval, static_eval_parent
     FROM evaluations
     WHERE is_legal_check = 0
     ;
@@ -488,15 +488,15 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
     WHERE 1=1
     ${(options.useFFP !== false && (maxDepth - depth <= 2) && alpha !== undefined && alpha !== null) ? ` 
         AND NOT (
-            (active_turn * -1) = ${TURNS.WHITE} 
-            AND static_eval < ${alpha} - ${PRUNING_MARGIN}
+            active_turn_parent = ${TURNS.WHITE} 
+            AND static_eval_parent < ${alpha} - ${PRUNING_MARGIN}
             AND is_promo = 0
             AND is_capture = 0 
         )` : ''}
     ${(options.useFFP !== false && (maxDepth - depth <= 2) && beta !== undefined && beta !== null) ? ` 
         AND NOT (
-            (active_turn * -1) = ${TURNS.BLACK} 
-            AND static_eval > ${beta} + ${PRUNING_MARGIN}
+            active_turn_parent = ${TURNS.BLACK} 
+            AND static_eval_parent > ${beta} + ${PRUNING_MARGIN}
             AND is_promo = 0
             AND is_capture = 0 
         )` : ''}

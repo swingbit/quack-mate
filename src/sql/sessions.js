@@ -107,7 +107,7 @@ export function getSwapFrontiersSQL() {
     `;
 }
 
-export function getMateScoringSQL(targetDepth) {
+export function getMateScoringSQL(targetDepth, isBatching = false) {
     return `
         UPDATE search_tree 
         SET minimax_eval = CASE 
@@ -115,6 +115,7 @@ export function getMateScoringSQL(targetDepth) {
             ELSE 0 
         END
         WHERE depth < ${targetDepth} 
+        ${isBatching ? 'AND depth != 1' : ''}
         AND id IN (SELECT id FROM attempted_expansions)
         AND id NOT IN (SELECT id FROM non_mate_nodes)
     `;

@@ -898,20 +898,14 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
         }
     };
 
-    // Helper: Run minimax pull-up from maxDepth to 0
-    const run_scoring = async (d) => {
-        const scoringQuery = getPersistentMinimaxSQL(d, isWhiteTurn);
-        await queryAll(db, scoringQuery);
-    };
-    
     // Helper: Run Backpropagation
     // applyQS: when true AND options.useQS is set, runs the QS extension before backprop.
     //          Pass true ONLY for the single definitive final-scoring call per ID depth.
-    const run_full_scoring_pass = async (targetDepth, applyQS = false) => {
+    const run_full_scoring_pass = async (targetDepth, applyQS = false, isBatching = false) => {
         const tScoreStart = performance.now();
         
         // 1. Identify Mate/Draw BEFORE falling back to static eval.
-        await db.query(getMateScoringSQL(targetDepth));
+        await db.query(getMateScoringSQL(targetDepth, isBatching));
 
         // 2. Initialize remaining leaves (horizon nodes without children keep static_eval)
         await db.query(getInitializeLeavesSQL(targetDepth));
@@ -1156,7 +1150,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                             stats.timing.rest_deep += (performance.now() - tDeepStart);
                         }
                         // Score
-                        await run_full_scoring_pass(searchDepth, options.maxDepthQS > 0);
+                        await run_full_scoring_pass(searchDepth, options.maxDepthQS > 0, true);
                         
                         // Re-Search Verification (if Reduced)
                         if (isReduced) {
@@ -1180,7 +1174,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
   
                                 // Run Full Depth from where we left off
                                 await run_persistent_loop(searchDepth + 1, id_depth, pAlpha, pBeta, id_depth);
-                                await run_full_scoring_pass(id_depth, options.maxDepthQS > 0);
+                                await run_full_scoring_pass(id_depth, options.maxDepthQS > 0, true);
                                 stats.timing.lmr_research += (performance.now() - tResearchStart);
                             }
                         }
