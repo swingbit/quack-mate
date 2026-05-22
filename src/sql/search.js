@@ -469,6 +469,19 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
         is_repetition, board_hash, is_legal_check, is_check, static_eval
     FROM evaluations
     WHERE is_legal_check = 0
+    ;
+
+    DROP TABLE IF EXISTS final_expanded;
+    CREATE TEMPORARY TABLE final_expanded AS
+    SELECT 
+        *,
+        (CASE WHEN active_turn = ${TURNS.WHITE} THEN ${getOrSQL(['wK_bb', 'wQ_bb', 'wR_bb', 'wB_bb', 'wN_bb', 'wP_bb'])} ELSE ${getOrSQL(['bK_bb', 'bQ_bb', 'bR_bb', 'bB_bb', 'bN_bb', 'bP_bb'])} END) as my_pieces,
+        (CASE WHEN active_turn = ${TURNS.WHITE} THEN ${getOrSQL(['bK_bb', 'bQ_bb', 'bR_bb', 'bB_bb', 'bN_bb', 'bP_bb'])} ELSE ${getOrSQL(['wK_bb', 'wQ_bb', 'wR_bb', 'wB_bb', 'wN_bb', 'wP_bb'])} END) as opponent_pieces,
+        CAST(CASE WHEN active_turn = ${TURNS.WHITE} THEN wK_sq ELSE bK_sq END AS TINYINT) as active_king_sq,
+        CAST(CASE WHEN active_turn = ${TURNS.WHITE} THEN bK_sq ELSE wK_sq END AS TINYINT) as passive_king_sq,
+        CAST(is_check AS TINYINT) as is_check
+    FROM expanded_scored
+    WHERE 1=1
     ${(options.useFFP !== false && (maxDepth - depth <= 2) && alpha !== undefined && alpha !== null) ? ` 
         AND NOT (
             (active_turn * -1) = ${TURNS.WHITE} 
@@ -485,16 +498,10 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
         )` : ''}
     ;
 
-    DROP TABLE IF EXISTS final_expanded;
-    CREATE TEMPORARY TABLE final_expanded AS
-    SELECT 
-        *,
-        (CASE WHEN active_turn = ${TURNS.WHITE} THEN ${getOrSQL(['wK_bb', 'wQ_bb', 'wR_bb', 'wB_bb', 'wN_bb', 'wP_bb'])} ELSE ${getOrSQL(['bK_bb', 'bQ_bb', 'bR_bb', 'bB_bb', 'bN_bb', 'bP_bb'])} END) as my_pieces,
-        (CASE WHEN active_turn = ${TURNS.WHITE} THEN ${getOrSQL(['bK_bb', 'bQ_bb', 'bR_bb', 'bB_bb', 'bN_bb', 'bP_bb'])} ELSE ${getOrSQL(['wK_bb', 'wQ_bb', 'wR_bb', 'wB_bb', 'wN_bb', 'wP_bb'])} END) as opponent_pieces,
-        CAST(CASE WHEN active_turn = ${TURNS.WHITE} THEN wK_sq ELSE bK_sq END AS TINYINT) as active_king_sq,
-        CAST(CASE WHEN active_turn = ${TURNS.WHITE} THEN bK_sq ELSE wK_sq END AS TINYINT) as passive_king_sq,
-        CAST(is_check AS TINYINT) as is_check
-    FROM expanded_scored;
+    INSERT INTO non_mate_nodes
+    SELECT DISTINCT parent_id 
+    FROM expanded_scored
+    EXCEPT SELECT id FROM non_mate_nodes;
 
     -- 4. Insert into Search Tree
     INSERT INTO search_tree

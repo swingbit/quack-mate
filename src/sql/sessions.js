@@ -10,6 +10,8 @@ export function getCreateTempTablesSQL() {
         CREATE TEMPORARY TABLE IF NOT EXISTS parent_nodes AS SELECT * FROM search_tree WHERE 1=0;
         CREATE TEMPORARY TABLE IF NOT EXISTS next_frontier_nodes AS SELECT * FROM search_tree WHERE 1=0;
         CREATE TEMPORARY TABLE IF NOT EXISTS frontier_nodes AS SELECT * FROM search_tree WHERE 1=0;
+        CREATE TEMPORARY TABLE IF NOT EXISTS non_mate_nodes (id INTEGER UNIQUE);
+        DELETE FROM non_mate_nodes;
         DELETE FROM history_moves;
         CREATE TEMPORARY TABLE IF NOT EXISTS raw_moves (
             parent_id INTEGER, 
@@ -39,7 +41,7 @@ export function getCreateTempTablesSQL() {
 }
 
 export function getClearSearchTreeSQL() {
-    return `DELETE FROM search_tree; DELETE FROM frontier_nodes;`;
+    return `DELETE FROM search_tree; DELETE FROM frontier_nodes; DELETE FROM non_mate_nodes;`;
 }
 
 export function getInsertRootNodeSQL(rootIsCheck) {
@@ -112,6 +114,7 @@ export function getMateScoringSQL(targetDepth) {
         END
         WHERE depth < ${targetDepth} 
         AND NOT EXISTS (SELECT 1 FROM search_tree child WHERE child.parent_id = search_tree.id)
+        AND id NOT IN (SELECT id FROM non_mate_nodes)
     `;
 }
 
