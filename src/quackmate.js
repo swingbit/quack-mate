@@ -1265,23 +1265,49 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             // Retrieve Results for this iteration
             // We just select the best move at depth 1 for the root player.
             
-            const bestRes = await db.query(`
-                SELECT st.from_sq, st.to_sq, st.piece, st.minimax_eval
+            const bestScoreRes = await db.query(`
+                SELECT st.minimax_eval
                 FROM search_tree st
                 WHERE st.depth = 1 
                 AND st.minimax_eval IS NOT NULL
-                ORDER BY st.minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}, st.static_eval ${isWhiteTurn ? 'DESC' : 'ASC'}, st.from_sq ASC, st.to_sq ASC
+                ORDER BY st.minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}
                 LIMIT 1;
             `);
             
-            if (bestRes.length > 0) {
-                 const best = bestRes[0];
-                 currentBestScore = Number(best.minimax_eval);
-                 currentBestMove = { 
-                    from: squareIndexToAlgebraic(best.from_sq), 
-                    to: squareIndexToAlgebraic(best.to_sq),                     piece: pieceIdToChar(best.piece) 
-                 };
-                 previousBestMove = currentBestMove;
+            if (bestScoreRes.length > 0) {
+                 const topScore = Number(bestScoreRes[0].minimax_eval);
+                 const candidates = await db.query(`
+                     SELECT st.from_sq, st.to_sq, st.piece, st.minimax_eval, st.static_eval
+                     FROM search_tree st
+                     WHERE st.depth = 1 
+                     AND st.minimax_eval = ${topScore}
+                 `);
+                 
+                 if (candidates.length > 0) {
+                      let best;
+                      if (options.randomize && candidates.length > 1) {
+                           best = candidates[Math.floor(Math.random() * candidates.length)];
+                      } else {
+                           // Deterministic tie-breaking: sort by static_eval, then by from_sq, to_sq
+                           candidates.sort((a, b) => {
+                               if (a.static_eval !== b.static_eval) {
+                                   return isWhiteTurn 
+                                       ? b.static_eval - a.static_eval 
+                                       : a.static_eval - b.static_eval;
+                               }
+                               if (a.from_sq !== b.from_sq) return a.from_sq - b.from_sq;
+                               return a.to_sq - b.to_sq;
+                           });
+                           best = candidates[0];
+                      }
+                      currentBestScore = Number(best.minimax_eval);
+                      currentBestMove = { 
+                         from: squareIndexToAlgebraic(best.from_sq), 
+                         to: squareIndexToAlgebraic(best.to_sq),
+                         piece: pieceIdToChar(best.piece) 
+                      };
+                      previousBestMove = currentBestMove;
+                 }
             }
             // console.log('pvId:', pvId, 'previousBestMove:', previousBestMove);
 

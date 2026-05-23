@@ -983,8 +983,8 @@ export async function find_best_move(fen, options) {
         });
         rootMoves.sort((a,b) => (b.orderScore || 0) - (a.orderScore || 0));
 
-        let bestDMove = rootMoves[0];
         let bestDScore = -SCORE_INFINITE;
+        let candidates = [];
         let alpha = -SCORE_INFINITE;
         let beta = SCORE_INFINITE;
 
@@ -1005,15 +1005,18 @@ export async function find_best_move(fen, options) {
                 }
             }
 
-            // Only replace best if strictly better (preserves MVV-LVA ordering for ties)
             if (i === 0 || score > bestDScore) {
                 bestDScore = score;
-                bestDMove = move;
+                candidates = [move];
+            } else if (score === bestDScore) {
+                candidates.push(move);
             }
             if (score > alpha) alpha = score;
         }
 
-        currentBestMove = bestDMove;
+        currentBestMove = options.randomize && candidates.length > 1
+            ? candidates[Math.floor(Math.random() * candidates.length)]
+            : candidates[0];
         currentBestScore = bestDScore;
         if (useTT) transpositionTable.set(hash, { bestMove: currentBestMove, score: currentBestScore, depth: d, bound: BOUND_EXACT });
     }

@@ -395,7 +395,8 @@ const players = {
     engine: null,
     stats: { moves: 0, time: 0, search_time: 0, nodes: 0 },
     options: {
-      ...DEFAULT_OPTIONS
+      ...DEFAULT_OPTIONS,
+      randomize: true
     }
   },
   black: {
@@ -404,7 +405,8 @@ const players = {
     engine: null,
     stats: { moves: 0, time: 0, search_time: 0, nodes: 0 },
     options: {
-      ...DEFAULT_OPTIONS
+      ...DEFAULT_OPTIONS,
+      randomize: true
     }
   }
 };

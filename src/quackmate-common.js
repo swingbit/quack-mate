@@ -29,7 +29,8 @@ export const DEFAULT_OPTIONS = {
     usePST: true,
     useMVVLVA: true,
     maxDepthQS: 0,
-    debug: false
+    debug: false,
+    randomize: false
 };
 
 export const RESTRICTED_MODE_LIMITS = {
