@@ -825,7 +825,10 @@ function bindEngineOptions() {
             finalVal = RESTRICTED_MODE_LIMITS.maxThreads;
             $el.val(RESTRICTED_MODE_LIMITS.maxThreads);
         }
-        if (field === 'maxDepth') {
+    }
+
+    if (field === 'maxDepth') {
+        if (isRestrictedMode) {
             const currentStrategy = players[color].options.strategy;
             const maxDepthLimit = (currentStrategy === 'recursive') ? 3 : RESTRICTED_MODE_LIMITS.maxDepth;
             if (finalVal > maxDepthLimit) {
@@ -833,6 +836,9 @@ function bindEngineOptions() {
                 $el.val(maxDepthLimit);
             }
         }
+        // Record choice for this strategy
+        players[color].lastDepthByStrategy = players[color].lastDepthByStrategy || {};
+        players[color].lastDepthByStrategy[players[color].options.strategy] = finalVal;
     }
 
     if (field === 'player') {
@@ -888,6 +894,23 @@ function configVisibility(color) {
     const p = players[color];
     const strategy = p.options.strategy;
 
+    // Initialize depth memory if not present
+    p.lastDepthByStrategy = p.lastDepthByStrategy || {
+        recursive: isRestrictedMode ? 3 : 3,
+        batched_pvs: p.options.maxDepth,
+        minimax: p.options.maxDepth
+    };
+
+    // When strategy changes, restore last recorded depth for the new strategy
+    if (p.lastStrategy !== strategy) {
+        p.lastStrategy = strategy;
+        const savedDepth = p.lastDepthByStrategy[strategy];
+        if (savedDepth !== undefined) {
+            p.options.maxDepth = savedDepth;
+            $(`#${color}-max-depth`).val(savedDepth);
+        }
+    }
+
     // Enforce Restricted Mode strategy-specific limits
     if (isRestrictedMode) {
         const maxDepthLimit = (strategy === 'recursive') ? 3 : RESTRICTED_MODE_LIMITS.maxDepth;
@@ -895,7 +918,10 @@ function configVisibility(color) {
         if (p.options.maxDepth > maxDepthLimit) {
             p.options.maxDepth = maxDepthLimit;
             $(`#${color}-max-depth`).val(maxDepthLimit);
+            p.lastDepthByStrategy[strategy] = maxDepthLimit; // Update record to capped value
         }
+    } else {
+        $(`#${color}-max-depth`).attr('max', 10);
     }
 
     const isWhite = color === 'white';
