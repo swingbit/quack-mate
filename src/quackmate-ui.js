@@ -825,9 +825,13 @@ function bindEngineOptions() {
             finalVal = RESTRICTED_MODE_LIMITS.maxThreads;
             $el.val(RESTRICTED_MODE_LIMITS.maxThreads);
         }
-        if (field === 'maxDepth' && finalVal > RESTRICTED_MODE_LIMITS.maxDepth) {
-            finalVal = RESTRICTED_MODE_LIMITS.maxDepth;
-            $el.val(RESTRICTED_MODE_LIMITS.maxDepth);
+        if (field === 'maxDepth') {
+            const currentStrategy = players[color].options.strategy;
+            const maxDepthLimit = (currentStrategy === 'recursive') ? 3 : RESTRICTED_MODE_LIMITS.maxDepth;
+            if (finalVal > maxDepthLimit) {
+                finalVal = maxDepthLimit;
+                $el.val(maxDepthLimit);
+            }
         }
     }
 
@@ -881,8 +885,20 @@ function updateStrategyOptions(color) {
 }
 
 function configVisibility(color) {
-    const isWhite = color === 'white';
     const p = players[color];
+    const strategy = p.options.strategy;
+
+    // Enforce Restricted Mode strategy-specific limits
+    if (isRestrictedMode) {
+        const maxDepthLimit = (strategy === 'recursive') ? 3 : RESTRICTED_MODE_LIMITS.maxDepth;
+        $(`#${color}-max-depth`).attr('max', maxDepthLimit);
+        if (p.options.maxDepth > maxDepthLimit) {
+            p.options.maxDepth = maxDepthLimit;
+            $(`#${color}-max-depth`).val(maxDepthLimit);
+        }
+    }
+
+    const isWhite = color === 'white';
     const $settings = $(`#${color}-ai-settings`);
     const $ttContainer = $(`#${color}-tt-container`);
     const $threadsContainer = $(`#${color}-threads-container`);
