@@ -854,7 +854,7 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
             prep.active_turn_parent = ${TURNS.WHITE} 
             AND prep.is_check_parent = 0
             AND (${getIsKingInCheckSQL('prep', 'prep.active_turn')}) = FALSE
-            AND prep.static_eval_parent < ${pAlpha} - ${PRUNING_MARGIN}
+            AND prep.static_eval_parent < ${pAlpha} - (${PRUNING_MARGIN} * (${maxDepth} - ${depth} + 1))
             AND prep.is_promo = 0
             AND (
                 prep.is_capture = 0 
@@ -866,7 +866,7 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
             prep.active_turn_parent = ${TURNS.BLACK} 
             AND prep.is_check_parent = 0
             AND (${getIsKingInCheckSQL('prep', 'prep.active_turn')}) = FALSE
-            AND prep.static_eval_parent > ${pBeta} + ${PRUNING_MARGIN}
+            AND prep.static_eval_parent > ${pBeta} + (${PRUNING_MARGIN} * (${maxDepth} - ${depth} + 1))
             AND prep.is_promo = 0
             AND (
                 prep.is_capture = 0
