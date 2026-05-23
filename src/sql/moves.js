@@ -477,7 +477,11 @@ export function getAppliedStateDirectSQL(m, s, capturedPieceAlias = null) {
  */
 
 export function getApplyMoveSQL(move, isWhiteTurn, gameState) {
-    const { from_sq, to_sq, piece, isCastle, isPromo } = move;
+    const from_sq = move.from_sq;
+    const to_sq = move.to_sq;
+    const piece = move.piece;
+    const isCastle = move.isCastle !== undefined ? move.isCastle : move.is_castle;
+    const isPromo = move.isPromo !== undefined ? move.isPromo : move.is_promo;
     const opponentTurnVal = isWhiteTurn ? TURNS.BLACK : TURNS.WHITE;
     const pieceVal = typeof piece === 'string' ? PIECES[piece] : piece;
 
