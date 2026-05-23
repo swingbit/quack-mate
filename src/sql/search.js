@@ -489,14 +489,14 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
     ${(options.useFFP !== false && (maxDepth - depth <= 2) && alpha !== undefined && alpha !== null) ? ` 
         AND NOT (
             active_turn_parent = ${TURNS.WHITE} 
-            AND static_eval_parent < ${alpha} - (${PRUNING_MARGIN} * (${maxDepth} - ${depth} + 1))
+            AND static_eval < ${alpha} - ${PRUNING_MARGIN}
             AND is_promo = 0
             AND is_capture = 0 
         )` : ''}
     ${(options.useFFP !== false && (maxDepth - depth <= 2) && beta !== undefined && beta !== null) ? ` 
         AND NOT (
             active_turn_parent = ${TURNS.BLACK} 
-            AND static_eval_parent > ${beta} + (${PRUNING_MARGIN} * (${maxDepth} - ${depth} + 1))
+            AND static_eval > ${beta} + ${PRUNING_MARGIN}
             AND is_promo = 0
             AND is_capture = 0 
         )` : ''}

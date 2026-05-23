@@ -854,11 +854,11 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
             prep.active_turn_parent = ${TURNS.WHITE} 
             AND prep.is_check_parent = 0
             AND (${getIsKingInCheckSQL('prep', 'prep.active_turn')}) = FALSE
-            AND prep.static_eval_parent < ${pAlpha} - (${PRUNING_MARGIN} * (${maxDepth} - ${depth} + 1))
+            AND prep.static_eval < ${pAlpha} - ${PRUNING_MARGIN}
             AND prep.is_promo = 0
             AND (
                 prep.is_capture = 0 
-                OR (prep.static_eval_parent + ${getPieceValueCaseSQL('prep.captured_piece')} + ${CAPTURE_MARGIN} < ${pAlpha})
+                OR (prep.static_eval + ${getPieceValueCaseSQL('prep.captured_piece')} + ${CAPTURE_MARGIN} < ${pAlpha})
             )
         )` : ''}
     ${(options.useFFP !== false && (maxDepth - depth <= 2) && pBeta !== undefined && pBeta !== null) ? ` 
@@ -866,11 +866,11 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
             prep.active_turn_parent = ${TURNS.BLACK} 
             AND prep.is_check_parent = 0
             AND (${getIsKingInCheckSQL('prep', 'prep.active_turn')}) = FALSE
-            AND prep.static_eval_parent > ${pBeta} + (${PRUNING_MARGIN} * (${maxDepth} - ${depth} + 1))
+            AND prep.static_eval > ${pBeta} + ${PRUNING_MARGIN}
             AND prep.is_promo = 0
             AND (
                 prep.is_capture = 0
-                OR (prep.static_eval_parent - ${getPieceValueCaseSQL('prep.captured_piece')} - ${CAPTURE_MARGIN} > ${pBeta})
+                OR (prep.static_eval - ${getPieceValueCaseSQL('prep.captured_piece')} - ${CAPTURE_MARGIN} > ${pBeta})
             )
         )` : ''}
     ;
