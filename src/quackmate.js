@@ -967,6 +967,9 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
 
     // --- ITERATIVE DEEPENING LOOP ---
     for (let id_depth = 1; id_depth <= depth; id_depth++) {
+        pAlpha = -SCORE_INFINITE;
+        pBeta = SCORE_INFINITE;
+
         // 1. Clear search tables for this depth
         await db.query(getClearSearchTreeSQL());
         await db.query('DROP TABLE IF EXISTS batch_d2_nodes; CREATE TEMPORARY TABLE batch_d2_nodes AS SELECT * FROM search_tree WHERE 1=0;');
@@ -1021,7 +1024,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                 await db.query(getInsertPVSearchFrontierSQL(pvId));
                 
                 await run_persistent_loop(2, id_depth, pAlpha, pBeta, id_depth);
-                await run_full_scoring_pass(id_depth, options.maxDepthQS > 0);
+                await run_full_scoring_pass(id_depth, options.maxDepthQS > 0 && id_depth === depth);
                 stats.timing.pv_search += (performance.now() - tPvStart);
                 
                 const pvNodeRes = await db.query(`SELECT minimax_eval FROM search_tree WHERE id = ${pvId}`);
@@ -1150,7 +1153,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                             stats.timing.rest_deep += (performance.now() - tDeepStart);
                         }
                         // Score
-                        await run_full_scoring_pass(searchDepth, options.maxDepthQS > 0, true);
+                        await run_full_scoring_pass(searchDepth, options.maxDepthQS > 0 && id_depth === depth, true);
                         
                         // Re-Search Verification (if Reduced)
                         if (isReduced) {
@@ -1174,7 +1177,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
   
                                 // Run Full Depth from where we left off
                                 await run_persistent_loop(searchDepth + 1, id_depth, pAlpha, pBeta, id_depth);
-                                await run_full_scoring_pass(id_depth, options.maxDepthQS > 0, true);
+                                await run_full_scoring_pass(id_depth, options.maxDepthQS > 0 && id_depth === depth, true);
                                 stats.timing.lmr_research += (performance.now() - tResearchStart);
                             }
                         }
@@ -1233,7 +1236,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                     
                     // Final Scoring propagation to Root (QS applies here — this is the one definitive pass)
                     const tScoreStart = performance.now();
-                    await run_full_scoring_pass(id_depth, true);
+                    await run_full_scoring_pass(id_depth, options.maxDepthQS > 0 && id_depth === depth);
                     stats.timing.scoring += (performance.now() - tScoreStart);
                     
                     if (options.useHistory) {
@@ -1255,7 +1258,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             }
             
             // Ensure root (Depth 0) is updated from children (Depth 1)
-            await run_full_scoring_pass(1, id_depth === 1);
+            await run_full_scoring_pass(1, options.maxDepthQS > 0 && id_depth === depth);
 
             if (options.useTT) {
                 // --- END OF DEPTH: UPDATE TT ---
