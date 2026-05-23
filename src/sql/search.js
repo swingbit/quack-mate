@@ -206,38 +206,44 @@ export function getLeafEvalCTE(depth) {
 
 
 export function getMinimaxCTE(depth) {
-    return `
-    /* =========================================================
-       MINIMAX BACKPROPAGATION
-       
-       Rolls up scores from leaves to root.
-       Pseudocode:
-       - If Leaf: return static_eval
-       - If Parent (White Turn): return MAX(children)
-       - If Parent (Black Turn): return MIN(children)
-       ========================================================= */
-    minimax AS (
-        -- [Base Case] Leaves
-        SELECT 
-            id::INTEGER as id, 
-            parent_id::INTEGER as parent_id, 
-            static_eval as minimax_eval, 
-            depth 
-        FROM leaf_evals
-        
-        UNION ALL
-        
-        -- [Recursive Step] Propagate Upwards
-        SELECT 
-            p.id, 
-            p.parent_id, 
-            (CASE WHEN p.active_turn = ${TURNS.WHITE} THEN MAX(c.minimax_eval) ELSE MIN(c.minimax_eval) END) as minimax_eval, 
-            p.depth
-        FROM search_tree p 
-        JOIN minimax c ON p.id = c.parent_id
-        WHERE p.depth < ${depth}
-        GROUP BY p.id, p.parent_id, p.depth, p.active_turn
-    )`;
+    let sqlParts = [];
+    
+    // For the deepest depth (leaves at depth), their minimax value is just their static evaluation
+    sqlParts.push(`minimax_d${depth} AS (
+        SELECT id, parent_id, static_eval as minimax_eval 
+        FROM search_tree 
+        WHERE depth = ${depth}
+    )`);
+    
+    // For each shallower depth, we minimax over the children at depth + 1.
+    // If a node has no children at depth + 1, it must be terminal, so we use its static_eval.
+    for (let d = depth - 1; d >= 1; d--) {
+        sqlParts.push(`minimax_d${d} AS (
+            SELECT 
+                p.id,
+                p.parent_id,
+                COALESCE(
+                    CASE WHEN p.active_turn = ${TURNS.WHITE} THEN MAX(c.minimax_eval) ELSE MIN(c.minimax_eval) END,
+                    p.static_eval
+                ) as minimax_eval
+            FROM search_tree p
+            LEFT JOIN minimax_d${d + 1} c ON c.parent_id = p.id
+            WHERE p.depth = ${d}
+            GROUP BY p.id, p.parent_id, p.active_turn, p.static_eval
+        )`);
+    }
+    
+    // Finally, union all the minimax depths into a single "minimax" CTE so that the rest of the query works unmodified!
+    let unionParts = [];
+    for (let d = 1; d <= depth; d++) {
+        unionParts.push(`SELECT id, minimax_eval FROM minimax_d${d}`);
+    }
+    
+    sqlParts.push(`minimax AS (
+        ${unionParts.join('\n        UNION ALL\n        ')}
+    )`);
+    
+    return sqlParts.join(',\n\n        ');
 }
 
 /**
