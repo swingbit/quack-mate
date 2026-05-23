@@ -237,42 +237,44 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
            ========================================================= */
         SELECT 
             ${fromS}.id as parent_id, 
-            mp.from_sq, 
+            sq.i as from_sq, 
             mp.target_sq AS to_sq, 
-            pt.piece,
-            0 as is_castle, 
-            0 as is_promo,
+            (pt.piece * ${fromS}.active_turn)::TINYINT as piece,
+            0::TINYINT as is_castle, 
+            0::TINYINT as is_promo,
             
             -- [Capture Logic]
             (CASE WHEN ${getIsBitSetSQL(`${fromS}.opponent_pieces`, 'mp.target_sq')} THEN 1 ELSE 0 END)::TINYINT as is_capture,
             (COALESCE(${captureLogicFor('mp', fromS, 'target_sq')}, 0))::TINYINT as captured_piece
         
         FROM ${fromClause}
-        -- 1. Explode: Find occupied squares and identify pieces using LATERAL checking against 's' and 'sq'
-        -- We check 5 piece types (active turn) per square. Total checks: N * 64 * 5 = 320N.
+        -- 1. Explode: Find occupied squares and identify pieces using LATERAL
         JOIN LATERAL (
-            SELECT (CASE 
-                WHEN ${fromS}.active_turn = ${TURNS.WHITE} AND ${getIsBitSetSQL(`${fromS}.wN_bb`, 'sq.i')} THEN ${PIECES.N}
-                WHEN ${fromS}.active_turn = ${TURNS.WHITE} AND ${getIsBitSetSQL(`${fromS}.wB_bb`, 'sq.i')} THEN ${PIECES.B}
-                WHEN ${fromS}.active_turn = ${TURNS.WHITE} AND ${getIsBitSetSQL(`${fromS}.wR_bb`, 'sq.i')} THEN ${PIECES.R}
-                WHEN ${fromS}.active_turn = ${TURNS.WHITE} AND ${getIsBitSetSQL(`${fromS}.wQ_bb`, 'sq.i')} THEN ${PIECES.Q}
-                WHEN ${fromS}.active_turn = ${TURNS.WHITE} AND ${getIsBitSetSQL(`${fromS}.wK_bb`, 'sq.i')} THEN ${PIECES.K}
-                
-                WHEN ${fromS}.active_turn = ${TURNS.BLACK} AND ${getIsBitSetSQL(`${fromS}.bN_bb`, 'sq.i')} THEN ${PIECES.n}
-                WHEN ${fromS}.active_turn = ${TURNS.BLACK} AND ${getIsBitSetSQL(`${fromS}.bB_bb`, 'sq.i')} THEN ${PIECES.b}
-                WHEN ${fromS}.active_turn = ${TURNS.BLACK} AND ${getIsBitSetSQL(`${fromS}.bR_bb`, 'sq.i')} THEN ${PIECES.r}
-                WHEN ${fromS}.active_turn = ${TURNS.BLACK} AND ${getIsBitSetSQL(`${fromS}.bQ_bb`, 'sq.i')} THEN ${PIECES.q}
-                WHEN ${fromS}.active_turn = ${TURNS.BLACK} AND ${getIsBitSetSQL(`${fromS}.bK_bb`, 'sq.i')} THEN ${PIECES.k}
+            SELECT (CASE WHEN ${fromS}.active_turn = ${TURNS.WHITE} THEN
+                (CASE 
+                    WHEN ${getIsBitSetSQL(`${fromS}.wN_bb`, 'sq.i')} THEN ${PIECES.N}
+                    WHEN ${getIsBitSetSQL(`${fromS}.wB_bb`, 'sq.i')} THEN ${PIECES.B}
+                    WHEN ${getIsBitSetSQL(`${fromS}.wR_bb`, 'sq.i')} THEN ${PIECES.R}
+                    WHEN ${getIsBitSetSQL(`${fromS}.wQ_bb`, 'sq.i')} THEN ${PIECES.Q}
+                    WHEN ${getIsBitSetSQL(`${fromS}.wK_bb`, 'sq.i')} THEN ${PIECES.K}
+                END)
+            ELSE
+                (CASE 
+                    WHEN ${getIsBitSetSQL(`${fromS}.bN_bb`, 'sq.i')} THEN ${PIECES.N}
+                    WHEN ${getIsBitSetSQL(`${fromS}.bB_bb`, 'sq.i')} THEN ${PIECES.B}
+                    WHEN ${getIsBitSetSQL(`${fromS}.bR_bb`, 'sq.i')} THEN ${PIECES.R}
+                    WHEN ${getIsBitSetSQL(`${fromS}.bQ_bb`, 'sq.i')} THEN ${PIECES.Q}
+                    WHEN ${getIsBitSetSQL(`${fromS}.bK_bb`, 'sq.i')} THEN ${PIECES.K}
+                END)
             END) as piece
-        ) pt ON true
+        ) pt ON pt.piece IS NOT NULL
         
         -- 2. Join Mobility
-        JOIN mobility_precomputed mp ON mp.from_sq = sq.i AND mp.piece = ABS(pt.piece)
+        JOIN mobility_precomputed mp ON mp.from_sq = sq.i AND mp.piece = pt.piece
         
         WHERE 
         -- Blockers
-        ${getIsBitSetSQL(`${fromS}.my_pieces`, 'sq.i')}
-        AND (mp.ray_mask & ${fromS}.all_pieces) = 0 
+        (mp.ray_mask & ${fromS}.all_pieces) = 0 
         -- Friendly Fire
         AND NOT ${getIsBitSetSQL(`${fromS}.my_pieces`, 'mp.target_sq')}
 
