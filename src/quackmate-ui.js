@@ -923,7 +923,6 @@ function configVisibility(color) {
 
     // 2. Engine and Strategy Specific visibility
     const $qsContainer = $(`#${color}-qs-depth-container`);
-    const strategy = p.options.strategy;
     
     // Universal Strategy Rules
     if (strategy === 'recursive') {
