@@ -910,4 +910,33 @@ button.pause {
   100% { transform: rotate(360deg); }
 }
 
+/* Help Modal Styling */
+#help-modal .modal-content {
+  width: 600px;
+  max-width: 95%;
+}
+
+#help-modal .modal-body {
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+#help-modal section {
+  margin-top: 20px;
+}
+
+#help-modal section:first-of-type {
+  margin-top: 0;
+}
+
+#help-modal h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+#help-modal ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
 
