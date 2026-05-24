@@ -379,25 +379,24 @@
           <h3 style="margin-top: 0;">What is Quack-Mate?</h3>
           <p>Quack-Mate is an experimental chess engine that performs move generation and evaluation directly within <strong>DuckDB</strong> using SQL. It explores the feasibility of using analytical databases for game-tree search.</p>
           <ul style="margin: 10px 0; padding-left: 20px;">
-            <li><strong>Blog Post (architecture, benchmarks, etc):</strong> <a href="https://swingbit.github.io/quackmate/" target="_blank">https://swingbit.github.io/quackmate/</a></li>
+            <li><strong>Technical Writeup:</strong> <a href="https://swingbit.github.io/quackmate/" target="_blank">https://swingbit.github.io/quackmate/</a></li>
             <li><strong>GitHub Repository:</strong> <a href="https://github.com/swingbit/quack-mate" target="_blank">https://github.com/swingbit/quack-mate</a></li>
           </ul>
         </section>
 
         <section id="help-restricted-section" style="margin-top: 20px;">
           <h3>&#9888; Restricted Mode</h3>
-          <p>You are currently playing using a WASM DuckDB engine in <strong>Restricted Mode</strong>. To ensure browser stability in this static environment, search depth is capped at 5 (3 for Recursive CTE) and threads at 2.</p>
-          <p>The WASM engine is limited to 4 GB of RAM. Out of memory errors may still occur, especially using the Recursive CTE strategy.</p>
-          <p>To experience the full power of Quack-Mate (including higher depths and the high-performance Native DuckDB backend), please visit the <a href="https://github.com/swingbit/quack-mate" target="_blank">GitHub Repository</a> and run it locally.</p>
+          <p>You are currently playing using a WASM DuckDB engine in <strong>Restricted Mode</strong>. Because memory is limited to 4GB, search depth is capped at 5 (3 for Recursive CTE) and threads at 2.</p>
+          <p>To experience Quack-Mate with higher depths and the high-performance Native DuckDB backend, please visit the <a href="https://github.com/swingbit/quack-mate" target="_blank">GitHub Repository</a> and run it locally.</p>
         </section>
 
         <section style="margin-top: 20px;">
           <h3>Engine Options</h3>
           <ul style="padding-left: 20px;">
             <li><strong>Max Depth:</strong> How many plies ahead the AI calculates.</li>
-            <li><strong>Max Depth QS:</strong> Quiescence Search depth: how many plies on top of Max Depth the AI calculates to stabilize "noisy" positions involving captures.</li>
-            <li><strong>Strategy:</strong> Different SQL approaches to search (Recursive CTE is impractical for above Max Depth 3).</li>
-            <li><strong>Optimisations:</strong> Heuristics like Alpha-Beta pruning and Transposition Tables (TT) that help the engine search faster.</li>
+            <li><strong>Max Depth QS:</strong> Quiescence Search depth: how many plies on top of Max Depth the AI calculates to stabilize non-quiet positions involving captures.</li>
+            <li><strong>Strategy:</strong> Different SQL approaches to search (Recursive CTE is impractical above Max Depth 3).</li>
+            <li><strong>Optimisations:</strong> Toggleable Move Ordering Heuristics and Pruning Techniques that help the engine search faster.</li>
           </ul>
         </section>
       </div>
@@ -406,6 +405,7 @@
       </div>
     </div>
   </div>
+
   <!-- Screen Resolution Overlay -->
   <div class="resolution-overlay">
     <div class="resolution-container">
