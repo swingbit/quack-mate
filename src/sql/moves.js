@@ -735,12 +735,15 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
         -- Custom Batch Logic: Progressive Batching
         CAST(
             CASE 
+                WHEN sq.is_capture = 1 OR sq.is_promo = 1 OR sq.is_castle = 1 OR sq.is_check = 1 OR sq.gives_check = 1 THEN
+                    (CASE WHEN sq.row_rank = 1 THEN 0 ELSE 1 END)
                 WHEN sq.row_rank = 1 THEN 0 
                 WHEN sq.row_rank <= 4 THEN 1 
                 WHEN sq.row_rank <= 12 THEN 2 
                 ELSE 3 + FLOOR((sq.row_rank - 13) / ${batchSize}) 
             END 
         AS INTEGER) as batch_id
+
 
     FROM (
         SELECT 

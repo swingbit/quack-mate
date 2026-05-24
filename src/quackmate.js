@@ -1174,7 +1174,30 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                                 const tResearchStart = performance.now();
                                 
                                 stats.lmr.researches++;
-  
+                                
+                                // Prune frontier_nodes to ONLY keep descendants of depth 1 moves that actually failed high.
+                                // This prevents re-searching other sibling moves in the batch at full depth!
+                                const pruneCondition = isWhiteTurn 
+                                    ? `minimax_eval > ${pAlpha}` 
+                                    : `minimax_eval < ${pBeta}`;
+                                
+                                await db.query(`
+                                    DELETE FROM frontier_nodes 
+                                    WHERE id NOT IN (
+                                        WITH RECURSIVE descendants AS (
+                                            SELECT id FROM search_tree 
+                                            WHERE depth = 1 
+                                            AND ${pruneCondition}
+                                            
+                                            UNION ALL
+                                            
+                                            SELECT child.id FROM search_tree child
+                                            JOIN descendants parent ON child.parent_id = parent.id
+                                        )
+                                        SELECT id FROM descendants
+                                    )
+                                `);
+
                                 // Run Full Depth from where we left off
                                 await run_persistent_loop(searchDepth + 1, id_depth, pAlpha, pBeta, id_depth);
                                 await run_full_scoring_pass(id_depth, options.maxDepthQS > 0 && id_depth === depth, true);
@@ -1258,7 +1281,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             }
             
             // Ensure root (Depth 0) is updated from children (Depth 1)
-            await run_full_scoring_pass(1, options.maxDepthQS > 0 && id_depth === depth);
+            await run_full_scoring_pass(1, options.maxDepthQS > 0 && id_depth === depth && id_depth === 1);
 
             if (options.useTT) {
                 // --- END OF DEPTH: UPDATE TT ---
