@@ -18,9 +18,8 @@ import {
 
 const BBTYPE = 'UBIGINT';
 
-import { getIsBitSetSQL, getOrSQL, getXorSQL, getBitIndexSQL, getSafeLSH } from './utils.js';
+import { getIsBitSetSQL, getOrSQL, getXorSQL, getBitIndexSQL, getSafeLSH, getZobristHashSQL } from './utils.js';
 import { getStaticEvalSQL, getPieceValueCaseSQL, getMVVLVAScoreSQL, getIncrementalEvalSQL } from './eval.js';
-import { getZobristHashSQL } from './search.js';
 
 export function getAreSquaresAttackedSQL(squares, alias = 'em', attacker_turn = null) {
     // If squares is an array, format as IN (a, b, c) or = a

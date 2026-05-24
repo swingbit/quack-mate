@@ -1,5 +1,6 @@
 const BBTYPE = 'UBIGINT';
 
+import { PIECES, TURNS } from '../quackmate-common.js';
 import { getPopulateBoardStateTableSQL } from './schema.js';
 
 /**
@@ -108,4 +109,25 @@ export function getRevertStateSQL(originalBitboards, originalGameState) {
         'DELETE FROM v_board_state;',
         getPopulateBoardStateTableSQL()
     ].filter(q => q.length > 0);
+}
+
+export function getZobristHashSQL(alias) {
+    const pieceXor = `COALESCE((SELECT bit_xor(zc.val) FROM zobrist_constants zc WHERE (
+        (zc.piece = ${PIECES.K} AND ${getIsBitSetSQL(`${alias}.wK_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.Q} AND ${getIsBitSetSQL(`${alias}.wQ_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.R} AND ${getIsBitSetSQL(`${alias}.wR_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.B} AND ${getIsBitSetSQL(`${alias}.wB_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.N} AND ${getIsBitSetSQL(`${alias}.wN_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.P} AND ${getIsBitSetSQL(`${alias}.wP_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.k} AND ${getIsBitSetSQL(`${alias}.bK_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.q} AND ${getIsBitSetSQL(`${alias}.bQ_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.r} AND ${getIsBitSetSQL(`${alias}.bR_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.b} AND ${getIsBitSetSQL(`${alias}.bB_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.n} AND ${getIsBitSetSQL(`${alias}.bN_bb`, 'zc.square')}) OR
+        (zc.piece = ${PIECES.p} AND ${getIsBitSetSQL(`${alias}.bP_bb`, 'zc.square')})
+    )), 0::${BBTYPE})`;
+
+    const turnXor = `COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'turn' AND ${alias}.active_turn = ${TURNS.BLACK}), 0::${BBTYPE})`;
+    const castleXor = `COALESCE((SELECT bit_xor(zm.val) FROM zobrist_misc zm WHERE zm.type = 'castle' AND (${getIsBitSetSQL(`${alias}.castling_rights`, 'zm.idx')})), 0::${BBTYPE})`;
+    return getXorSQL(pieceXor, turnXor, castleXor);
 }

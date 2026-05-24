@@ -28,11 +28,14 @@ import {
     getMergeTT_SQL,
     getUpdateHistorySQL,
     getBatchUpdateKillersSQL,
-    getZobristHashSQL,
     getQSInitSQL,
     getQSExpansionSQL,
     getQSMinimaxBackpropSQL,
-    getApplyQSEvalToMainTreeSQL
+    getApplyQSEvalToMainTreeSQL,
+    getRFPUpdateSQL,
+    getRFPDeleteSQL,
+    getLMRCheckSQL,
+    getLMRPruneSQL
 } from './sql/search.js';
 
 
@@ -41,14 +44,14 @@ import {
     getClearTableSQL,
     getRevertStateSQL,
     getBoardStateSQLs,
-    getInsertValuesSQL
+    getInsertValuesSQL,
+    getZobristHashSQL
 } from './sql/utils.js';
 
 import {
     getCreateTempTablesSQL,
     getClearSearchTreeSQL,
     getInsertRootNodeSQL,
-    getNMPConditionSQL,
     getSwapFrontiersSQL,
     getMateScoringSQL,
     getInitializeLeavesSQL,
@@ -869,15 +872,10 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             // we assume it will fail high even if we do nothing (pass the turn).
             if (options.useRFP && d <= maxD && loopAlpha != null && loopBeta != null) {
                 const margin = PRUNING_MARGIN * (targetD - d + 1);
-                const nmpCondition = getNMPConditionSQL(margin, loopAlpha, loopBeta);
 
-                await db.query(`
-                    UPDATE search_tree 
-                    SET minimax_eval = static_eval 
-                    WHERE id IN (SELECT id FROM frontier_nodes WHERE ${nmpCondition})
-                `);
+                await db.query(getRFPUpdateSQL(margin, loopAlpha, loopBeta));
                 
-                const resNmp = await db.query(`DELETE FROM frontier_nodes WHERE ${nmpCondition} RETURNING 1`);
+                const resNmp = await db.query(getRFPDeleteSQL(margin, loopAlpha, loopBeta));
                 if (resNmp.length > 0) {
                     stats.pruning = stats.pruning || {};
                     stats.pruning.nmp_cutoffs = (stats.pruning.nmp_cutoffs || 0) + resNmp.length;
@@ -1161,11 +1159,9 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                             
                             // Check bounds
                             const tCheckStart = performance.now();
-                            if (isWhiteTurn && pAlpha !== null) {
-                                const check = await db.query(`SELECT 1 FROM search_tree WHERE depth=1 AND minimax_eval > ${pAlpha} AND id IN (SELECT parent_id FROM batch_d2_nodes) LIMIT 1`);
-                                if (check.length > 0) unexpectedHigh = true;
-                            } else if (!isWhiteTurn && pBeta !== null) {
-                                const check = await db.query(`SELECT 1 FROM search_tree WHERE depth=1 AND minimax_eval < ${pBeta} AND id IN (SELECT parent_id FROM batch_d2_nodes) LIMIT 1`);
+                            const lmrCheckQuery = getLMRCheckSQL(isWhiteTurn, pAlpha, pBeta);
+                            if (lmrCheckQuery) {
+                                const check = await db.query(lmrCheckQuery);
                                 if (check.length > 0) unexpectedHigh = true;
                             }
                             stats.timing.lmr_check += (performance.now() - tCheckStart);
@@ -1177,26 +1173,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                                 
                                 // Prune frontier_nodes to ONLY keep descendants of depth 1 moves that actually failed high.
                                 // This prevents re-searching other sibling moves in the batch at full depth!
-                                const pruneCondition = isWhiteTurn 
-                                    ? `minimax_eval > ${pAlpha}` 
-                                    : `minimax_eval < ${pBeta}`;
-                                
-                                await db.query(`
-                                    DELETE FROM frontier_nodes 
-                                    WHERE id NOT IN (
-                                        WITH RECURSIVE descendants AS (
-                                            SELECT id FROM search_tree 
-                                            WHERE depth = 1 
-                                            AND ${pruneCondition}
-                                            
-                                            UNION ALL
-                                            
-                                            SELECT child.id FROM search_tree child
-                                            JOIN descendants parent ON child.parent_id = parent.id
-                                        )
-                                        SELECT id FROM descendants
-                                    )
-                                `);
+                                await db.query(getLMRPruneSQL(isWhiteTurn, pAlpha, pBeta));
 
                                 // Run Full Depth from where we left off
                                 await run_persistent_loop(searchDepth + 1, id_depth, pAlpha, pBeta, id_depth);
