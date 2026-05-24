@@ -42,7 +42,6 @@ export function getXorSQL(...args) {
 /**
  * Finds the bit coordinate (0-63) of a single set bit in a bitboard.
  * Designed to extract King squares (which always have exactly one bit set).
- * Uses a mathematically closed-form log2 operation for maximum vectorization efficiency.
  */
 export function getBitIndexSQL(val) {
     return `CAST(floor(log2(CAST(CASE WHEN (${val}) = 0 THEN 1 ELSE (${val}) END AS DOUBLE)) + 1e-10) AS TINYINT)`;

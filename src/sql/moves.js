@@ -208,7 +208,7 @@ export function getGivesCheckSQL(moveAlias, parentAlias) {
  *    - Strategy: Explode occupied squares via LATERAL join -> Hash Join Mobility.
  *    - Filtering: Uses ray masks for blockers and checks my_pieces for friendly fire.
  * 
- * 2. PAWNS (Vectorized)
+ * 2. PAWNS
  *    - Strategy: Global bitwise shifts on piece bitboards (Pushes & Captures).
  *    - Features: Handles promotions and capture identification (including piece type).
  * 
@@ -281,7 +281,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
 
         /* =========================================================
-           PART 2: PAWNS (Vectorized)
+           PART 2: PAWNS
            Strategy: Global Bitwise Shifts
            ========================================================= */
         -- SINGLE PUSH (White: << 8, Black: >> 8)
