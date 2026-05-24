@@ -743,8 +743,6 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
                 ELSE 3 + FLOOR((sq.row_rank - 13) / ${batchSize}) 
             END 
         AS INTEGER) as batch_id
-
-
     FROM (
         SELECT 
             *,
