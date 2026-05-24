@@ -33,37 +33,53 @@ let MAX_QS_DEPTH = 0;
 
 const args = process.argv.slice(2);
 
-if (args.includes('--help') || args.includes('-h')) {
+function showUsage() {
     console.log(`
-Usage: node benchmarks/benchmark.js [options]
+Usage: node benchmarks/benchmark.js [benchmarks] [options]
+
+Benchmarks (at least one must be specified, or --all):
+  --all                Execute all 3 benchmarks (main, qs, threads)
+  --main               Execute the main cumulative configurations benchmark
+  --qs                 Execute the Quiescence Search (QS) vs Depth +1 comparison
+  --threads            Execute the thread scalability benchmark (+ LMR configuration across 1, 2, 4, 8, 16 threads)
 
 Options:
   -h, --help           Show this help message and exit
-  --only-qs            Only execute the Quiescence Search (QS) vs Depth +1 comparison
-  --only-threads       Only execute the thread scalability benchmark (+ LMR configuration across 1, 2, 4, 8, 16 threads)
-  --threads <n>        Set the maximum threads to use (default: ${DEFAULT_OPTIONS.maxThreads})
-  --max-depth <n>      Set the search depth (default: ${MAX_DEPTH})
-  --max-qs-depth <n>   Set the quiescence search depth (default: ${MAX_QS_DEPTH})
+  --thread-count <n>   Set the maximum database threads to use (default: ${DEFAULT_OPTIONS.maxThreads})
+  --max-depth <n>      Set the search depth (default: 4)
+  --max-qs-depth <n>   Set the quiescence search depth (default: 0)
 
 Examples:
-  node benchmarks/benchmark.js --max-depth=5
-  node benchmarks/benchmark.js --only-threads --max-depth=5
-  node benchmarks/benchmark.js --only-qs --max-depth=4 --max-qs-depth=2
+  node benchmarks/benchmark.js --main
+  node benchmarks/benchmark.js --main --qs --max-depth=4
+  node benchmarks/benchmark.js --all --max-depth=5
 `);
+}
+
+if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+    showUsage();
     process.exit(0);
 }
 
-const onlyQs = args.includes('--only-qs');
-const onlyThreads = args.includes('--only-threads');
+const runAll = args.includes('--all');
+const runMain = runAll || args.includes('--main');
+const runQs = runAll || args.includes('--qs');
+const runThreads = runAll || args.includes('--threads');
+
+if (!runMain && !runQs && !runThreads) {
+    console.log("Error: You must specify at least one benchmark to execute (--main, --qs, --threads, or --all).\n");
+    showUsage();
+    process.exit(1);
+}
 
 let maxThreads = DEFAULT_OPTIONS.maxThreads;
-const threadsArg = args.find(arg => arg.startsWith('--threads'));
+const threadsArg = args.find(arg => arg.startsWith('--thread-count'));
 if (threadsArg) {
     if (threadsArg.includes('=')) {
         const val = parseInt(threadsArg.split('=')[1], 10);
         if (!isNaN(val)) maxThreads = val;
     } else {
-        const idx = args.indexOf('--threads');
+        const idx = args.indexOf('--thread-count');
         if (idx !== -1 && idx + 1 < args.length) {
             const val = parseInt(args[idx + 1], 10);
             if (!isNaN(val)) maxThreads = val;
@@ -101,9 +117,9 @@ if (qsDepthArg) {
 
 const CONFIGURATIONS = [
     // Baseline
-    { name: 'Recursive (Exhaustive)', strategy: 'recursive', maxDepth: MAX_DEPTH, options: { useAlphaBeta: false } },
-    { name: 'ID (Exhaustive)', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: false, useMVVLVA: false, useTT: false, useKillers: false, useHistory: false, useLMP: false, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
-    // Phase 1: BPVS (AB + LMP = minimum viable batched search)
+    // { name: 'Recursive (Exhaustive)', strategy: 'recursive', maxDepth: MAX_DEPTH, options: { useAlphaBeta: false } },
+    // { name: 'ID (Exhaustive)', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: false, useMVVLVA: false, useTT: false, useKillers: false, useHistory: false, useLMP: false, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
+    // // Phase 1: BPVS (AB + LMP = minimum viable batched search)
     { name: 'BPVS (ID + AB + LMP + Batches)', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: true, useMVVLVA: false, useTT: false, useKillers: false, useHistory: false, useLMP: true, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
     // Phase 2: Move Ordering (improves AB cutoff efficiency)
     { name: '+ MVVLVA', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: true, useMVVLVA: true, useTT: false, useKillers: false, useHistory: false, useLMP: true, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
@@ -121,86 +137,79 @@ const CONFIGURATIONS = [
 
 
 
-async function runBenchmark() {
-    if (!onlyQs) {
-        console.log(`Starting Benchmark at Max Depth ${MAX_DEPTH} + QS ${MAX_QS_DEPTH}, with ${maxThreads} Threads...\n`);
+async function runMainBenchmark() {
+    console.log(`Starting Main Benchmark at Max Depth ${MAX_DEPTH} + QS ${MAX_QS_DEPTH}, with ${maxThreads} Threads...\n`);
+    
+    for (let i = 0; i < TEST_FENS.length; i++) {
+        const testCase = TEST_FENS[i];
         
-        // Output headers for Markdown
+        console.log('### Board: ' + testCase.name + ': ' + testCase.fen);
+        console.log('| Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |');
+        console.log('|---|---|---|---|---|---|');
 
-        for (let i = 0; i < TEST_FENS.length; i++) {
-            const testCase = TEST_FENS[i];
+        for (const config of CONFIGURATIONS) {
+            const runOptions = { 
+                ...DEFAULT_OPTIONS, 
+                ...config.options, 
+                strategy: config.strategy || 'batched_pvs', 
+                maxDepth: config.maxDepth, 
+                maxThreads: maxThreads
+            };
+
+            // Force Garbage Collection to reset RSS baseline
+            if (global.gc) {
+                global.gc();
+                await new Promise(resolve => setTimeout(resolve, 50));
+                global.gc();
+            }
+
+            // --- RSS Memory Tracking ---
+            let peakRss = 0;
+            const sampleRss = () => {
+                const rss = process.memoryUsage().rss;
+                if (rss > peakRss) peakRss = rss;
+            };
+            sampleRss(); // baseline
+            const rssInterval = setInterval(sampleRss, 50);
+
+            const start = performance.now();
             
-            console.log('### Board: ' + testCase.name + ': ' + testCase.fen);
-            console.log('| Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |');
-            console.log('|---|---|---|---|---|---|');
-
-            for (const config of CONFIGURATIONS) {
-                // if ((i === 1 || i === 2) && config.name.includes('Exhaustive')) {
-                //     // OOM
-                //     console.log(`| ${config.name} | - | - | - | - | OOM |`);
-                //     continue;
-                // }
-                const runOptions = { 
-                    ...DEFAULT_OPTIONS, 
-                    ...config.options, 
-                    strategy: config.strategy || 'batched_pvs', 
-                    maxDepth: config.maxDepth, 
-                    maxThreads: maxThreads
-                };
-
-                // Force Garbage Collection to reset RSS baseline
-                if (global.gc) {
-                    global.gc();
-                    await new Promise(resolve => setTimeout(resolve, 50));
-                    global.gc();
+            try {
+                let result;
+                if (config.strategy === 'standard') {
+                    result = await find_best_move_std(testCase.fen, runOptions);
+                } else {
+                    // Initialize engine instance per test
+                    await init();
+                    result = await find_best_move(testCase.fen, runOptions);
                 }
+                const end = performance.now();
 
-                // --- RSS Memory Tracking ---
-                let peakRss = 0;
-                const sampleRss = () => {
-                    const rss = process.memoryUsage().rss;
-                    if (rss > peakRss) peakRss = rss;
-                };
-                sampleRss(); // baseline
-                const rssInterval = setInterval(sampleRss, 50);
+                clearInterval(rssInterval);
+                sampleRss(); // one final sample
 
-                const start = performance.now();
+                const durationMs = end - start;
+                const peakMB = (peakRss / (1024 * 1024)).toFixed(1);
                 
-                try {
-                    let result;
-                    if (config.strategy === 'standard') {
-                        result = await find_best_move_std(testCase.fen, runOptions);
-                    } else {
-                        // Initialize engine instance per test
-                        await init();
-                        result = await find_best_move(testCase.fen, runOptions);
-                    }
-                    const end = performance.now();
-
-                    clearInterval(rssInterval);
-                    sampleRss(); // one final sample
-
-                    const durationMs = end - start;
-                    const peakMB = (peakRss / (1024 * 1024)).toFixed(1);
-                    
-                    const moveStr = result.move ? `${result.move.from}${result.move.to}` : (result.reason || 'none');
-                    
-                    console.log(`| ${config.name} | ${moveStr} | ${result.score} | ${result.nodes} | ${Math.round(durationMs)} | ${peakMB} |`);
-                } catch (err) {
-                    const peakMB = (peakRss / (1024 * 1024)).toFixed(1);
-                    clearInterval(rssInterval);
-                    console.log(`| ${config.name} | ERROR | ERROR | ERROR | ERROR | ${peakMB} |`);
-                    console.error(err);
-                } finally {
-                    if (config.strategy !== 'standard') {
-                        await close();
-                    }
+                const moveStr = result.move ? `${result.move.from}${result.move.to}` : (result.reason || 'none');
+                
+                console.log(`| ${config.name} | ${moveStr} | ${result.score} | ${result.nodes} | ${Math.round(durationMs)} | ${peakMB} |`);
+            } catch (err) {
+                const peakMB = (peakRss / (1024 * 1024)).toFixed(1);
+                clearInterval(rssInterval);
+                console.log(`| ${config.name} | ERROR | ERROR | ERROR | ERROR | ${peakMB} |`);
+                console.error(err);
+            } finally {
+                if (config.strategy !== 'standard') {
+                    await close();
                 }
             }
-            console.log('\n');
         }
+        console.log('\n');
     }
+}
 
+async function runQsBenchmark() {
     console.log("================================================================================\n");
     console.log("## QUIESCENCE SEARCH (QS) VS. DEPTH +1 COMPARISON\n");
     
@@ -390,10 +399,22 @@ async function runThreadsBenchmark() {
     }
 }
 
-const mainPromise = onlyThreads ? runThreadsBenchmark() : runBenchmark();
+async function runAllEnabledBenchmarks() {
+    if (runMain) {
+        await runMainBenchmark();
+    }
+    if (runQs) {
+        await runQsBenchmark();
+    }
+    if (runThreads) {
+        await runThreadsBenchmark();
+    }
+}
+
+const mainPromise = runAllEnabledBenchmarks();
 
 mainPromise.then(() => {
-    console.log("Benchmark Complete.");
+    console.log("All Benchmarks Complete.");
     process.exit(0);
 }).catch((e) => {
     console.error(e);
