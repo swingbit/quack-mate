@@ -119,67 +119,39 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
 }
 
 
-export function getLeafEvalCTE(depth) {
+export function getMinimaxCTE(depth) {
     return `
     /* =========================================================
-       LEAF NODE EVALUATION
-       
-       Selects all nodes at max_depth (leaves) to begin backpropagation.
+       MINIMAX BACKPROPAGATION
        ========================================================= */
-    leaf_evals AS (
-        SELECT id, parent_id, depth, active_turn, static_eval
+    minimax AS (
+        -- Base Case: Leaf nodes (nodes at target depth or nodes that have no children)
+        SELECT id, parent_id, depth, static_eval::INTEGER as minimax_eval, 0 as step
         FROM search_tree s
-        WHERE s.depth = ${depth} 
+        WHERE s.depth = ${depth}
            OR NOT EXISTS (SELECT 1 FROM search_tree child WHERE child.parent_id = s.id)
+        
+        UNION ALL
+        
+        -- Recursive Step: Evaluate parents at depth = depth - (prev.step + 1)
+        SELECT 
+            parent.id, parent.parent_id, parent.depth,
+            (CASE WHEN parent.active_turn = ${TURNS.WHITE} 
+                  THEN MAX(child.minimax_eval) 
+                  ELSE MIN(child.minimax_eval) 
+            END)::INTEGER as minimax_eval,
+            prev.step + 1 as step
+        FROM (SELECT DISTINCT step FROM minimax) prev
+        JOIN search_tree parent ON parent.depth = ${depth} - (prev.step + 1)
+        JOIN recurring.minimax child ON child.parent_id = parent.id
+        GROUP BY parent.id, parent.parent_id, parent.depth, parent.active_turn, prev.step
     )`;
-}
-
-
-export function getMinimaxCTE(depth) {
-    let sqlParts = [];
-    
-    // For the deepest depth (leaves at depth), their minimax value is just their static evaluation
-    sqlParts.push(`minimax_d${depth} AS (
-        SELECT id, parent_id, static_eval as minimax_eval 
-        FROM search_tree 
-        WHERE depth = ${depth}
-    )`);
-    
-    // For each shallower depth, we minimax over the children at depth + 1.
-    // If a node has no children at depth + 1, it must be terminal, so we use its static_eval.
-    for (let d = depth - 1; d >= 1; d--) {
-        sqlParts.push(`minimax_d${d} AS (
-            SELECT 
-                p.id,
-                p.parent_id,
-                COALESCE(
-                    CASE WHEN p.active_turn = ${TURNS.WHITE} THEN MAX(c.minimax_eval) ELSE MIN(c.minimax_eval) END,
-                    p.static_eval
-                ) as minimax_eval
-            FROM search_tree p
-            LEFT JOIN minimax_d${d + 1} c ON c.parent_id = p.id
-            WHERE p.depth = ${d}
-            GROUP BY p.id, p.parent_id, p.active_turn, p.static_eval
-        )`);
-    }
-    
-    // Finally, union all the minimax depths into a single "minimax" CTE so that the rest of the query works unmodified!
-    let unionParts = [];
-    for (let d = 1; d <= depth; d++) {
-        unionParts.push(`SELECT id, minimax_eval FROM minimax_d${d}`);
-    }
-    
-    sqlParts.push(`minimax AS (
-        ${unionParts.join('\n        UNION ALL\n        ')}
-    )`);
-    
-    return sqlParts.join(',\n\n        ');
 }
 
 /**
  * THE GRAND RECURSIVE SEARCH QUERY
  * 
- * This function builds a SINGLE SQL query that performs the entire search (Expansion -> Eval -> Minimax).
+ * This function builds a SINGLE SQL query that performs the entire search (Expansion -> Minimax).
  * It uses a `WITH RECURSIVE` CTE to traverse the game tree.
  * 
  * Structure:
@@ -187,22 +159,18 @@ export function getMinimaxCTE(depth) {
  *    - Base Case: Selects the current board state (root).
  *    - Recursive Step: Expands the previous depth's nodes using `getMovesSelectSQL`.
  * 
- * 2. `leaf_evals`: Selects nodes at the max `depth` and assigns a static evaluation score.
- * 
- * 3. `minimax` (RecursiveCTE): 
+ * 2. `minimax` (RecursiveCTE using recurring): 
  *    - Base Case: Leaf nodes with their static evaluations.
- *    - Recursive Step (Reverse): Joins child nodes to parents, applying MAX or MIN aggregation 
- *      depending on whose turn it is.
+ *    - Recursive Step (Reverse): Joins child nodes to parents using recurring.minimax to 
+ *      dynamically aggregate scores accessing leaves at mixed depths (requires DuckDB >= 1.5).
  * 
- * 4. Final Select: Returns the best move from the root's children based on the minimax value.
+ * 3. Final Select: Returns the best move from the root's children based on the minimax value.
  */
 
 export function getRecursiveSearchQuery(depth, isWhiteTurn, alpha = -SCORE_INFINITE, beta = SCORE_INFINITE, returnAllMoves = false) {
     return `
     WITH RECURSIVE
         ${getExpansionCTE(depth, alpha, beta)},
-        
-        ${getLeafEvalCTE(depth)},
         
         ${getMinimaxCTE(depth)},
         
