@@ -117,9 +117,9 @@ if (qsDepthArg) {
 
 const CONFIGURATIONS = [
     // Baseline
-    // { name: 'Recursive (Exhaustive)', strategy: 'recursive', maxDepth: MAX_DEPTH, options: { useAlphaBeta: false } },
-    // { name: 'ID (Exhaustive)', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: false, useMVVLVA: false, useTT: false, useKillers: false, useHistory: false, useLMP: false, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
-    // // Phase 1: BPVS (AB + LMP = minimum viable batched search)
+    { name: 'Recursive (Exhaustive)', strategy: 'recursive', maxDepth: MAX_DEPTH, options: { useAlphaBeta: false } },
+    { name: 'ID (Exhaustive)', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: false, useMVVLVA: false, useTT: false, useKillers: false, useHistory: false, useLMP: false, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
+    // Phase 1: BPVS (AB + LMP = minimum viable batched search)
     { name: 'BPVS (ID + AB + LMP + Batches)', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: true, useMVVLVA: false, useTT: false, useKillers: false, useHistory: false, useLMP: true, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
     // Phase 2: Move Ordering (improves AB cutoff efficiency)
     { name: '+ MVVLVA', strategy: 'batched_pvs', maxDepth: MAX_DEPTH, options: { maxDepthQS: MAX_QS_DEPTH, useAlphaBeta: true, useMVVLVA: true, useTT: false, useKillers: false, useHistory: false, useLMP: true, useRFP: false, useFFP: false, useLMR: false, usePST: false } },
