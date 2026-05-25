@@ -5,7 +5,7 @@ Starting Benchmark at Max Depth 4 + QS 0, with 1 Threads...
 ### Board: Perft Pos 1 (Start): rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5237 | 689.5 |
+| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5163 | 692.8 |
 | ID (Exhaustive) | b1c3 | -10 | 216365 | 4715 | 1229.8 |
 | BPVS (ID + AB + LMP + Batches) | g1f3 | 0 | 57698 | 2861 | 621.3 |
 | + MVVLVA | g1f3 | 0 | 57698 | 2868 | 615.1 |
@@ -22,7 +22,7 @@ Starting Benchmark at Max Depth 4 + QS 0, with 1 Threads...
 ### Board: Perft Pos 2 (Complex Mid-game): r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 77354 | 9738.3 |
+| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 84378 | 9743.8 |
 | ID (Exhaustive) | c3d5 | -170 | 4078946 | 48067 | 15051.3 |
 | BPVS (ID + AB + LMP + Batches) | c3d5 | -170 | 98530 | 3878 | 1843.1 |
 | + MVVLVA | c3d5 | -170 | 26529 | 2539 | 1530.5 |
@@ -39,7 +39,7 @@ Starting Benchmark at Max Depth 4 + QS 0, with 1 Threads...
 ### Board: Perft Pos 3 (KiwiPete): r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | e2a6 | 65 | 4002708 | 86423 | 10017.6 |
+| Recursive (Exhaustive) | e2a6 | 65 | 4002708 | 91310 | 10021.5 |
 | ID (Exhaustive) | e2a6 | 65 | 4100812 | 54381 | 13451.3 |
 | BPVS (ID + AB + LMP + Batches) | e2a6 | 65 | 91564 | 3785 | 1615.0 |
 | + MVVLVA | e2a6 | 65 | 25460 | 2528 | 1310.0 |
@@ -56,7 +56,7 @@ Starting Benchmark at Max Depth 4 + QS 0, with 1 Threads...
 ### Board: Perft Pos 4 (Endgame): 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1312 | 1213.3 |
+| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1448 | 1200.5 |
 | ID (Exhaustive) | b4f4 | 10 | 49336 | 2952 | 1438.6 |
 | BPVS (ID + AB + LMP + Batches) | b4f4 | 10 | 9933 | 1995 | 1261.7 |
 | + MVVLVA | b4f4 | 10 | 12359 | 2069 | 1274.8 |
