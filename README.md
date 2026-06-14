@@ -56,7 +56,7 @@ npm install
 ```
 
 ### 2. Launching the Server
-Boot the servers using the unified developer launcher:
+Boot the server using the launcher:
 ```bash
 # Starts both the static web server (Port 8000) and native DuckDB API (Port 3001)
 ./quackmate-server.sh node
