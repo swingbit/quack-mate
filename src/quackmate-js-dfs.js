@@ -853,6 +853,7 @@ export async function find_best_move(fen, options) {
         let bestMoveInNode = null;
         let bestScoreInNode = -SCORE_INFINITE;
         let movesEvaluated = 0;
+        let hasLegalMoves = false;
 
         const stages = ['tt', 'captures', 'quiets'];
         for (const stage of stages) {
@@ -873,6 +874,8 @@ export async function find_best_move(fen, options) {
             for (let i = 0; i < movesToTry.length; i++) {
                 const move = movesToTry[i];
                 if (stage !== 'tt' && ttMove && move.from === ttMove.from && move.to === ttMove.to) continue;
+                
+                hasLegalMoves = true;
                 
                 // LMP (Late Move Pruning)
                 // matches rnk <= (12 + remaining_depth * 4) + captures/checks exemption
@@ -944,6 +947,9 @@ export async function find_best_move(fen, options) {
         }
 
         if (movesEvaluated === 0) {
+            if (hasLegalMoves) {
+                return gameState.evaluate() * (gameState.turn === TURNS.WHITE ? 1 : -1);
+            }
             if (gameState.isKingInCheck(gameState.turn)) return -SCORE_MATE_THRESHOLD + depth;
             return 0;
         }
