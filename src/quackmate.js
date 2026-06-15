@@ -1035,9 +1035,18 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                 // Batch 3+: Rank 3+ (Killers/Quiet) in chunks
 
                 // 1. Identify "Rest" Parents (Nodes at Depth 1 that are NOT PV)
+                // NOTE ON PVS WINDOWS:
+                // We use one-sided wide windows for the rest search instead of a narrow null window.
+                // In standard PVS, non-PV moves are searched with a null window [alpha, alpha+1] and re-searched
+                // at full depth if they fail high. However, because the SQL engine processes moves in batches
+                // and lacks sequential re-search logic, using a null window would cause moves that fail high
+                // to receive incorrect, truncated evaluations (leading to wrong move selection and evaluation mismatches).
+                // Using one-sided wide windows falls back to standard Alpha-Beta pruning for non-PV moves,
+                // ensuring mathematical correctness and exact scores for better moves, while still allowing
+                // early cutoffs via LMP, FFP, RFP, and move ordering.
                 const useAlphaBeta = (options.useAlphaBeta !== false);
-                pAlpha = (useAlphaBeta) ? (isWhiteTurn ? pvScore : pvScore - 1) : -SCORE_INFINITE;
-                pBeta = (useAlphaBeta) ? (isWhiteTurn ? pvScore + 1 : pvScore) : SCORE_INFINITE;
+                pAlpha = (useAlphaBeta) ? (isWhiteTurn ? pvScore : -SCORE_INFINITE) : -SCORE_INFINITE;
+                pBeta = (useAlphaBeta) ? (isWhiteTurn ? SCORE_INFINITE : pvScore) : SCORE_INFINITE;
 
                 const grouped_pvs_search = async () => {
                      const tGroupStart = performance.now();
