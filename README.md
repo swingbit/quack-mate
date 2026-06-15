@@ -21,10 +21,10 @@ Quackmate is a proof-of-concept chess engine where the core logic — move gener
 - **SQL Move Generation**: Generates all pseudo-legal and legal moves (except en-passant) using relational joins and bitwise operations on `UBIGINT` bitboards.
 - **Dual Search Implementations**:
   - **Batched PVS (Principal Variation Search)**: A highly-optimised search framework with:
-    - **Search Strategies**: Principal Variation Search (PVS) with **Iterative Deepening** and **Quiescence Search (QS)** (with Stand-pat delta pruning).
-    - **Pruning & Reductions**: Alpha-Beta pruning, **Reverse Futility Pruning (RFP)**, **Forward Futility Pruning (FFP)**, **Late Move Reduction (LMR)**, and **Late Move Pruning (LMP)**.
-    - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Attacker), **Piece-Square Tables (PST)**, **Killer Moves**, and the **History Heuristic**.
-    - **Transposition Tables**: Seeded **Zobrist Hashing** for stable position keys, utilising a transposition table for PV-move ordering.
+    - **Search Strategies**: Principal Variation Search (PVS) with Iterative Deepening and Quiescence Search (QS) (with Stand-pat delta pruning).
+    - **Pruning & Reductions**: Alpha-Beta pruning, Reverse Futility Pruning (RFP), Forward Futility Pruning (FFP), Late Move Reduction (LMR), and Late Move Pruning (LMP).
+    - **Move Ordering**: MVV-LVA (Most Valuable Victim - Least Valuable Attacker), Piece-Square Tables (PST), Killer Moves, and the History Heuristic.
+    - **Transposition Tables**: Seeded Zobrist Hashing for stable position keys, utilising a transposition table for PV-move ordering.
   - **Recursive CTE Search**: An elegant search strategy that expands and evaluates the minimax game tree using a single recursive SQL query. Exhaustive search: no pruning performed.
 - **Cross-Platform Adaptability**:
   - **DuckDB WASM**: Runs fully sandboxed in the browser main-thread/web-workers. WASM is currently limited to 4 GB RAM.
@@ -56,7 +56,7 @@ npm install
 ```
 
 ### 2. Launching the Server
-Boot the servers using the unified developer launcher:
+Boot the server using the launcher:
 ```bash
 # Starts both the static web server (Port 8000) and native DuckDB API (Port 3001)
 ./quackmate-server.sh node
