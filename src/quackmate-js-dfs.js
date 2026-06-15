@@ -1008,7 +1008,7 @@ export async function find_best_move(fen, options) {
             if (i === 0 || score > bestDScore) {
                 bestDScore = score;
                 candidates = [move];
-            } else if (score === bestDScore) {
+            } else if (score === bestDScore && !useAlphaBeta) {
                 candidates.push(move);
             }
             if (score > alpha) alpha = score;
@@ -1030,6 +1030,7 @@ export async function find_best_move(fen, options) {
         move: currentBestMove ? {
             from: squareToAlgebraic(currentBestMove.from),
             to: squareToAlgebraic(currentBestMove.to),
+            piece: getPieceChar(currentBestMove.piece),
             promotion: currentBestMove.promotion ? getPieceChar(currentBestMove.promotion).toLowerCase() : undefined
         } : null, 
         nodes, 
