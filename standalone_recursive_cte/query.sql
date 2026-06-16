@@ -558,7 +558,7 @@
                 SELECT from_sq, to_sq, piece, is_castle, is_promo, total_nodes, minimax_eval
                 FROM (
                     SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, (SELECT COUNT(*) FROM search_tree) as total_nodes,
-                           ROW_NUMBER() OVER (ORDER BY m.minimax_eval DESC, st.static_eval DESC, st.from_sq ASC, st.to_sq ASC) as rn,
+                           ROW_NUMBER() OVER (ORDER BY (CASE WHEN (SELECT active_turn FROM game_state LIMIT 1) = 1 THEN -m.minimax_eval ELSE m.minimax_eval END) ASC, (CASE WHEN (SELECT active_turn FROM game_state LIMIT 1) = 1 THEN -st.static_eval ELSE st.static_eval END) ASC, st.from_sq ASC, st.to_sq ASC) as rn,
                            m.minimax_eval
                     FROM search_tree st 
                     JOIN minimax m ON st.id = m.id 

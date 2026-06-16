@@ -1,0 +1,10 @@
+{
+  "name": "quack-mate-standalone-cte",
+  "version": "1.0.0",
+  "description": "Standalone DuckDB Recursive CTE Chess Engine",
+  "type": "module",
+  "main": "run.js",
+  "dependencies": {
+    "@duckdb/node-api": "latest"
+  }
+}
