@@ -1,6 +1,6 @@
 # Standalone Recursive CTE Chess Engine
 
-This directory contains a fully standalone, minimal, and self-contained implementation of the **Quack-Mate** chess search engine using a recursive Common Table Expression (CTE) in DuckDB.
+This directory contains a minimal, self-contained implementation of the **Quack-Mate** chess search engine using a recursive Common Table Expression (CTE) in DuckDB.
 
 ## Structure
 - `prepare_standalone.js`: Creates `schema.sql` and `query.sql` from the main project.
