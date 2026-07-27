@@ -16,6 +16,7 @@ import {
   RESTRICTED_MODE_LIMITS
 } from './quackmate-wasm.js';
 import { CONFIG } from '../utils/config.js';
+import { sanFromMove, isKingInCheck } from './quackmate-san.js';
 
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -386,6 +387,7 @@ let is_move_legit = false
 let is_thinking = false
 let turn_start_time = 0;
 let move_history = [];
+let gameResult = '*';
 
 // Player State
 const players = {
@@ -583,6 +585,214 @@ function getHistoryText() {
     return [playerHeader, ...lines].join('\n');
 }
 
+// =============================================================================
+// PGN Export
+// =============================================================================
+
+/**
+ * Parse a move display string like "P e2-e4" back to {piece, from, to}.
+ * Returns null if parsing fails.
+ */
+function parseMoveString(moveStr) {
+    const parts = moveStr.split(' ');
+    if (parts.length !== 2) return null;
+    const piece = parts[0];
+    const squares = parts[1].split('-');
+    if (squares.length !== 2) return null;
+    const [from, to] = squares;
+    // Validate algebraic notation
+    if (!/^[a-h][1-8]$/.test(from) || !/^[a-h][1-8]$/.test(to)) return null;
+    return { piece, from, to };
+}
+
+/**
+ * Build PGN header section including the Seven Tag Roster and custom engine tags.
+ */
+function buildPgnHeaders() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${y}.${m}.${d}`;
+
+    function formatPlayerName(color) {
+        const p = players[color];
+        if (p.player === 'human') return 'Human';
+        const label = p.player === 'duckdb_native' ? 'DuckDB Native' :
+                      p.player === 'duckdb_wasm' ? 'DuckDB WASM' :
+                      p.player === 'standard_js' ? 'Standard JS Engine' : p.player;
+        return `${label} (${p.options.strategy}, d=${p.options.maxDepth})`;
+    }
+
+    const result = gameResult || '*';
+
+    const tags = [
+        `[Event "Quack-Mate Engine Game"]`,
+        `[Site "Quack-Mate Web UI"]`,
+        `[Date "${dateStr}"]`,
+        `[Round "?"]`,
+        `[White "${formatPlayerName('white')}"]`,
+        `[Black "${formatPlayerName('black')}"]`,
+        `[Result "${result}"]`,
+    ];
+
+    // Custom engine metadata tags
+    ['white', 'black'].forEach(color => {
+        const p = players[color];
+        if (p.player === 'human') return;
+        const cap = color.charAt(0).toUpperCase() + color.slice(1);
+        const engineLabel = p.player === 'duckdb_native' ? 'DuckDB Native' :
+                            p.player === 'duckdb_wasm' ? 'DuckDB WASM' :
+                            p.player === 'standard_js' ? 'Standard JS' : p.player;
+        tags.push(`[${cap}Engine "${engineLabel}"]`);
+        tags.push(`[${cap}Strategy "${p.options.strategy}"]`);
+        tags.push(`[${cap}Depth "${p.options.maxDepth}"]`);
+        if (p.options.maxDepthQS > 0) {
+            tags.push(`[${cap}QuiescenceDepth "${p.options.maxDepthQS}"]`);
+        }
+        tags.push(`[${cap}Threads "${p.options.maxThreads}"]`);
+
+        // Build config summary string
+        if (p.options.strategy === 'batched_pvs') {
+            const configs = [];
+            if (p.options.useAlphaBeta) configs.push('Alpha-Beta');
+            if (p.options.useTT) configs.push('TT');
+            if (p.options.useMVVLVA) configs.push('MVV-LVA');
+            if (p.options.usePST) configs.push('PST');
+            if (p.options.useKillers) configs.push('Killers');
+            if (p.options.useHistory) configs.push('History');
+            if (p.options.useRFP) configs.push('RFP');
+            if (p.options.useFFP) configs.push('FFP');
+            if (p.options.useLMR) configs.push('LMR');
+            if (p.options.useLMP) configs.push('LMP');
+            if (configs.length > 0) {
+                tags.push(`[${cap}Config "${configs.join(', ')}"]`);
+            }
+        }
+    });
+
+    return tags.join('\n');
+}
+
+/**
+ * Format a per-move comment with engine metadata.
+ */
+function formatMoveComment(move) {
+    const parts = [];
+    if (move.score) parts.push(`score: ${move.score}`);
+    parts.push(`nodes: ${move.nodes}`);
+    parts.push(`time: ${Math.round(move.duration)}ms`);
+    return parts.join(', ');
+}
+
+/**
+ * Build the PGN movetext section with SAN annotations and engine comments.
+ */
+function buildPgnMovetext() {
+    if (move_history.length === 0) return '';
+
+    const lines = [];
+    let moveNum = 1;
+
+    for (let i = 0; i < move_history.length; i += 2) {
+        const whiteMove = move_history[i];
+        const blackMove = i + 1 < move_history.length ? move_history[i + 1] : null;
+
+        let line = `${moveNum}.`;
+
+        // --- White move ---
+        const sanWhite = getSanForMove(i);
+        line += ` ${sanWhite}`;
+        line += ` { ${formatMoveComment(whiteMove)} }`;
+
+        // --- Black move ---
+        if (blackMove) {
+            const sanBlack = getSanForMove(i + 1);
+            line += ` ${sanBlack}`;
+            line += ` { ${formatMoveComment(blackMove)} }`;
+        }
+
+        lines.push(line);
+        moveNum++;
+    }
+
+    // Append game result
+    const result = gameResult || '*';
+    lines.push(result);
+
+    return lines.join('\n');
+}
+
+/**
+ * Compute the SAN string for a specific move in the history.
+ * Uses fen_stack[i] for the position before the move and fen_stack[i+1] for after.
+ */
+function getSanForMove(index) {
+    const move = move_history[index];
+    if (!move) return '?';
+
+    const fenBefore = fen_stack[index];
+    const fenAfter = fen_stack[index + 1];
+    if (!fenBefore || !fenAfter) return move.move || '?';
+
+    const parsed = parseMoveString(move.move);
+    if (!parsed) return move.move || '?';
+
+    // Determine if the resulting position gives check
+    const isCheck = isKingInCheck(fenAfter);
+
+    // Determine if this move is checkmate
+    const isLastMove = index === move_history.length - 1;
+    let isCheckmate = false;
+    if (isLastMove) {
+        if (gameResult === '1-0' && move.color === 'White') isCheckmate = true;
+        if (gameResult === '0-1' && move.color === 'Black') isCheckmate = true;
+    }
+
+    return sanFromMove(fenBefore, fenAfter, parsed, { isCheck, isCheckmate });
+}
+
+/**
+ * Generate the complete PGN text for the current game.
+ */
+function getPgnText() {
+    if (move_history.length === 0) return null;
+
+    const headers = buildPgnHeaders();
+    const movetext = buildPgnMovetext();
+
+    return headers + '\n\n' + movetext + '\n';
+}
+
+/**
+ * Generate a timestamped filename for the PGN download.
+ */
+function generatePgnFilename() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    return `QuackMate_${y}${m}${d}_${h}${min}${s}.pgn`;
+}
+
+/**
+ * Trigger a browser file download from a text string.
+ */
+function downloadFile(content, filename) {
+    const blob = new Blob([content], { type: 'application/x-chess-pgn' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 function showPanicOverlay(error) {
     const overlay = document.createElement('div');
     overlay.className = 'panic-overlay';
@@ -684,6 +894,7 @@ function new_game(orientation, start_fen) {
   last_fen = custom_fen
   fen_stack = [custom_fen]
   move_history = []
+  gameResult = '*';
   is_move_legit = false
   turn_start_time = performance.now();
   updateCapturedPieces(last_fen);
@@ -732,6 +943,7 @@ async function handle_end_game(fen) {
       fenCounts[bf] = (fenCounts[bf] || 0) + 1;
       if (fenCounts[bf] >= 3) {
         alert("The game has ended with a draw (3-fold repetition). Please start a new game.");
+        gameResult = '1/2-1/2';
         return;
       }
     }
@@ -740,6 +952,7 @@ async function handle_end_game(fen) {
     const halfMoveClock = parseInt(fen.split(' ')[4] || '0', 10);
     if (halfMoveClock >= 100) {
       alert("The game has ended with a draw (50-move rule). Please start a new game.");
+      gameResult = '1/2-1/2';
       return;
     }
 
@@ -751,10 +964,12 @@ async function handle_end_game(fen) {
     }
     if (reply == "draw") {
       alert("The game has ended with a draw. Please start a new game.")
+      gameResult = '1/2-1/2';
     } else {
       let res = reply.match(/^checkmate (white|black)$/)
       if (res) {
         alert("The game has ended with " + res[1] + " in checkmate. Please start a new game.")
+        gameResult = res[1] === 'white' ? '0-1' : '1-0';
       } else {
         panic("Unexpected game end state (expected 'checkmate' or 'draw'): " + reply)
       }
@@ -1596,6 +1811,20 @@ export async function init() {
     }).catch(err => {
       console.error('Failed to copy console: ', err);
     });
+  });
+
+  // Export PGN Button
+  $('#btn-export-pgn').on('click', function () {
+    const pgnText = getPgnText();
+    if (!pgnText) {
+      alert("No moves to export.");
+      return;
+    }
+    const $btn = $(this);
+    const originalText = $btn.text();
+    $btn.text("Exporting...");
+    downloadFile(pgnText, generatePgnFilename());
+    setTimeout(() => $btn.text(originalText), 2000);
   });
 
 }

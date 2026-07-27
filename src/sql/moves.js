@@ -627,7 +627,7 @@ export function getKingInCheckFullSQL(isWhiteTurn) {
  * Generates SQL to expand a batch of candidate moves into new board positions.
  * 
  * This function is part of the Batched PVS pipeline used in find_best_move_batched_pvs:
- *   frontier_nodes → generate moves → candidates_pvs → [getExpansionPVS_SQL] → next_frontier_nodes
+ *   frontier_nodes -> generate moves -> candidates_pvs -> [getExpansionPVS_SQL] -> next_frontier_nodes
  * 
  * At each depth, moves are split into batches:
  * - PV Batch (rn=1): The best-guess move from depth-1 search
