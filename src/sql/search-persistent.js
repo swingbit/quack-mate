@@ -539,6 +539,18 @@ export function getBatchUpdateKillersSQL(maxDepth) {
  * @param {number} targetDepth - main search max depth
  */
 export function getQSInitSQL(qsTable, targetDepth) {
+    // NOTE: We intentionally do NOT restrict seeding to nodes currently present in
+    // frontier_nodes/batch_d2_nodes. The batched PVS search processes root moves in several
+    // separate batches (PV / captures / quiet chunks), each of which overwrites those tracking
+    // tables with only its own leaves. Relying on them here would silently skip horizon leaves
+    // belonging to already-completed batches, and any skipped leaf that happens to give check
+    // would then be incorrectly scored as forced checkmate by getApplyQSEvalToMainTreeSQL
+    // (which assumes "is_check=1 AND no QS children" implies checkmate).
+    //
+    // Instead, we seed every depth=targetDepth leaf exactly once per iterative-deepening
+    // iteration, tracked via qs_covered_nodes (cleared once per id_depth iteration in
+    // getClearSearchTreeSQL). This guarantees full QS coverage across all batches while
+    // avoiding redundant reprocessing of leaves already handled by an earlier batch's pass.
     return `
     DELETE FROM ${qsTable};
     INSERT INTO ${qsTable}
@@ -552,14 +564,19 @@ export function getQSInitSQL(qsTable, targetDepth) {
         s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
     FROM search_tree s
     WHERE s.depth = ${targetDepth}
-    AND (
-        s.id IN (SELECT id FROM frontier_nodes)
-        OR s.id IN (SELECT id FROM batch_d2_nodes)
-        OR (
-            (SELECT COUNT(*) FROM frontier_nodes) = 0
-            AND (SELECT COUNT(*) FROM batch_d2_nodes) = 0
-        )
-    );
+      AND s.id NOT IN (SELECT id FROM qs_covered_nodes);
+
+    -- Mark these horizon leaves as covered so later batches within this same
+    -- iterative-deepening depth don't re-seed (or, prior to this fix, miss) them.
+    INSERT INTO qs_covered_nodes
+    SELECT id FROM ${qsTable}
+    EXCEPT SELECT id FROM qs_covered_nodes;
+
+    -- Snapshot exactly which node ids were seeded in THIS pass (see qs_seed_snapshot
+    -- definition in getCreateTempTablesSQL for why this is necessary).
+    DELETE FROM qs_seed_snapshot;
+    INSERT INTO qs_seed_snapshot
+    SELECT id FROM ${qsTable};
     `;
 }
 
@@ -798,11 +815,18 @@ export function getQSMinimaxBackpropSQL(qsBackD) {
  */
 export function getApplyQSEvalToMainTreeSQL(targetDepth) {
     return `
-        -- Score checkmates on horizon leaves that had is_check = 1 but 0 children in QS search tree
+        -- Score checkmates on horizon leaves that had is_check = 1 but 0 children in QS search tree.
+        -- IMPORTANT: restricted to nodes actually seeded into QS during THIS pass
+        -- (qs_seed_snapshot). Without this restriction, a node correctly resolved by an
+        -- earlier pass (whose qs_search_tree children get cleaned up after that pass) would
+        -- be silently re-scanned by a later pass with an empty qs_search_tree, and its
+        -- perfectly valid, non-mate score would be incorrectly overwritten with a fake
+        -- "forced checkmate" value just because no children exist *right now*.
         UPDATE search_tree s
         SET minimax_eval = CASE WHEN active_turn = ${TURNS.WHITE} THEN -${SCORE_MATE_THRESHOLD} + depth ELSE ${SCORE_MATE_THRESHOLD} - depth END
         WHERE depth = ${targetDepth}
           AND is_check = 1
+          AND s.id IN (SELECT id FROM qs_seed_snapshot)
           AND NOT EXISTS (SELECT 1 FROM qs_search_tree qs WHERE qs.parent_id = s.id);
 
         -- Apply QS results for leaves that had moves in QS

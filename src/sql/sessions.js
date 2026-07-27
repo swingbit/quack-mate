@@ -39,11 +39,32 @@ export function getCreateTempTablesSQL() {
         CREATE TEMPORARY TABLE IF NOT EXISTS qs_frontier AS SELECT * FROM search_tree WHERE 1=0;
         CREATE TEMPORARY TABLE IF NOT EXISTS qs_next_frontier AS SELECT * FROM search_tree WHERE 1=0;
         CREATE TEMPORARY TABLE IF NOT EXISTS qs_search_tree AS SELECT * FROM search_tree WHERE 1=0;
+        -- Tracks which main-tree horizon leaves (at the current targetDepth) have already
+        -- been seeded into a QS pass during this iterative-deepening depth iteration.
+        -- This is required because the batched PVS search processes root moves in several
+        -- separate batches (PV / captures / quiet chunks), each of which only leaves its OWN
+        -- leaves in frontier_nodes/batch_d2_nodes. Without this table, horizon leaves from
+        -- already-completed batches would be silently excluded from QS seeding, and any of
+        -- them that happen to give check would be incorrectly scored as forced checkmate by
+        -- getApplyQSEvalToMainTreeSQL (see getQSInitSQL).
+        CREATE TEMPORARY TABLE IF NOT EXISTS qs_covered_nodes (id INTEGER UNIQUE);
+        DELETE FROM qs_covered_nodes;
+        -- Snapshot of exactly which horizon leaves were seeded into QS during the CURRENT
+        -- run_full_scoring_pass call (see getQSInitSQL). Unlike qs_covered_nodes (which
+        -- accumulates across the whole id_depth iteration to avoid re-seeding), this table
+        -- is reset on every call and is used by getApplyQSEvalToMainTreeSQL to make sure the
+        -- "no QS children -> assume mate" fallback only ever considers nodes that were
+        -- actually part of THIS pass (whose qs_search_tree children, if any, are still
+        -- present). Without this, a node resolved correctly by an earlier pass could be
+        -- incorrectly re-flagged as mate by a later pass, once qs_search_tree has been
+        -- cleared for the next batch.
+        CREATE TEMPORARY TABLE IF NOT EXISTS qs_seed_snapshot (id INTEGER UNIQUE);
+        DELETE FROM qs_seed_snapshot;
     `;
 }
 
 export function getClearSearchTreeSQL() {
-    return `DELETE FROM search_tree; DELETE FROM frontier_nodes; DELETE FROM non_mate_nodes; DELETE FROM attempted_expansions;`;
+    return `DELETE FROM search_tree; DELETE FROM frontier_nodes; DELETE FROM non_mate_nodes; DELETE FROM attempted_expansions; DELETE FROM qs_covered_nodes;`;
 }
 
 export function getInsertRootNodeSQL(rootIsCheck) {
