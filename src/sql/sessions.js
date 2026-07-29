@@ -12,8 +12,17 @@ export function getCreateTempTablesSQL() {
         CREATE TEMPORARY TABLE IF NOT EXISTS frontier_nodes AS SELECT * FROM search_tree WHERE 1=0;
         CREATE TEMPORARY TABLE IF NOT EXISTS non_mate_nodes (id INTEGER UNIQUE);
         CREATE TEMPORARY TABLE IF NOT EXISTS attempted_expansions (id INTEGER UNIQUE);
+        -- Tracks depth=1 (root) nodes whose minimax_eval was established ONLY via an
+        -- alpha-beta cutoff bound (i.e. "provably no better than the current best"),
+        -- as opposed to an exact, fully-resolved value. Such bound values must NEVER be
+        -- treated as exact scores when picking/tying the final best move at the root,
+        -- since a bound can coincidentally match the best score numerically while the
+        -- move's true value is actually far worse (see getPersistentExpansionSQL callers
+        -- in quackmate.js: pruned_parents identifies exactly this class of node).
+        CREATE TEMPORARY TABLE IF NOT EXISTS bound_only_nodes (id INTEGER UNIQUE);
         DELETE FROM non_mate_nodes;
         DELETE FROM attempted_expansions;
+        DELETE FROM bound_only_nodes;
         DELETE FROM history_moves;
         CREATE TEMPORARY TABLE IF NOT EXISTS raw_moves (
             parent_id INTEGER, 

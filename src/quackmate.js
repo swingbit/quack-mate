@@ -1213,10 +1213,30 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                                  await db.query(`
                                      INSERT INTO pruned_parents (id)
                                      SELECT s.id FROM search_tree s
-                                     WHERE s.depth = 1 
+                                     WHERE s.depth = 1
                                      AND (${pruneCondition})
                                      AND EXISTS (SELECT 1 FROM search_tree child WHERE child.parent_id = s.id)
                                  `);
+
+                                // Permanently remember these ids as "bound-only" for this id_depth
+                                // iteration: their minimax_eval is only a proven lower/upper BOUND
+                                // (established via an alpha-beta cutoff against the current best),
+                                // not necessarily the exact resolved value. This prevents them from
+                                // later being mistaken for an exact tie with the true best move
+                                // when picking the final move (see final candidate selection below).
+                                // NOTE: pruneCondition uses an inclusive <=/>= comparison against
+                                // pAlpha/pBeta, which is exactly equal to pvScore. This means the PV
+                                // node's own (exact, fully-resolved) minimax_eval also satisfies the
+                                // condition by equality, even though it is NOT a bound - it IS the
+                                // reference value everything else is being compared against. We must
+                                // explicitly exclude pvId here or the PV itself would be wrongly
+                                // excluded from the final best-move candidate pool.
+                                await db.query(`
+                                    INSERT INTO bound_only_nodes (id)
+                                    SELECT id FROM pruned_parents
+                                    WHERE id != ${pvId}
+                                    EXCEPT SELECT id FROM bound_only_nodes
+                                `);
                                 
                                 const prunedCount = await db.query('SELECT COUNT(*) as c FROM pruned_parents');
                                 const pCount = Number(prunedCount[0].c);
@@ -1277,11 +1297,20 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             // Retrieve Results for this iteration
             // We just select the best move at depth 1 for the root player.
             
+            // NOTE: bound_only_nodes excludes depth=1 nodes whose minimax_eval is only a proven
+            // alpha-beta cutoff BOUND (not an exact, fully-resolved value). Without this exclusion,
+            // a move that was correctly pruned as "no better than the current best" can end up
+            // recorded with a value that numerically matches the best score by coincidence, making
+            // it look like a genuine tie for best move when its true value could be far worse
+            // (e.g. a move that hangs a piece, cut off early because a small material gain already
+            // matched the bound, while the actual best reply for the opponent - like capturing a
+            // hanging queen - was never explored). The PV move is never present in bound_only_nodes.
             const bestScoreRes = await db.query(`
                 SELECT st.minimax_eval
                 FROM search_tree st
-                WHERE st.depth = 1 
+                WHERE st.depth = 1
                 AND st.minimax_eval IS NOT NULL
+                AND st.id NOT IN (SELECT id FROM bound_only_nodes)
                 ORDER BY st.minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}
                 LIMIT 1;
             `);
@@ -1291,8 +1320,9 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                  const candidates = await db.query(`
                      SELECT st.from_sq, st.to_sq, st.piece, st.minimax_eval, st.static_eval
                      FROM search_tree st
-                     WHERE st.depth = 1 
+                     WHERE st.depth = 1
                      AND st.minimax_eval = ${topScore}
+                     AND st.id NOT IN (SELECT id FROM bound_only_nodes)
                  `);
                  
                  if (candidates.length > 0) {
