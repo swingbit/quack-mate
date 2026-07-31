@@ -34,7 +34,7 @@ export const DEFAULT_OPTIONS = {
 };
 
 export const RESTRICTED_MODE_LIMITS = {
-    maxThreads: 2,
+    maxThreads: 1,
     maxDepth: 5
 };
 
