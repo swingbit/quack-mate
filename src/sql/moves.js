@@ -1,4 +1,4 @@
-import { 
+import {
     PIECES,
     TURNS,
     PIECE_VALUES,
@@ -9,6 +9,7 @@ import {
     MASK_RANK_7,
     PRUNING_MARGIN,
     CAPTURE_MARGIN,
+    SCORE_INFINITE,
     ORDER_TT_OFFSET,
     ORDER_HISTORY_MAX,
     ORDER_KILLER_OFFSET,
@@ -790,6 +791,20 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
 
 export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, batchSize, isWhiteTurn, batchId, pAlpha = null, pBeta = null, options = {}) {
     const maxDepth = options.maxDepth || 4;
+
+    // Derive "effective" FFP bounds the same way getFFPFilterSQL does (see the detailed
+    // NOTE there): the Rest-search window is intentionally one-sided (see NOTE ON PVS
+    // WINDOWS in quackmate.js), leaving the non-root-mover side open at +/-SCORE_INFINITE
+    // for score correctness. FFP is a lossy heuristic that only decides whether to bother
+    // exploring a quiet move, so when one side is the open sentinel we mirror the other
+    // (finite) side, reproducing the old null-window relationship beta = alpha + 1 this
+    // pruning was calibrated against. Without this, an open bound here silently disables
+    // this half of FFP's pruning for the D1->D2 batch expansion (see e9d3709).
+    const hasAlpha = pAlpha !== undefined && pAlpha !== null && pAlpha > -SCORE_INFINITE;
+    const hasBeta = pBeta !== undefined && pBeta !== null && pBeta < SCORE_INFINITE;
+    const effAlpha = hasAlpha ? pAlpha : (hasBeta ? pBeta - 1 : null);
+    const effBeta = hasBeta ? pBeta : (hasAlpha ? pAlpha + 1 : null);
+
     return `
     INSERT INTO ${targetFrontier} (
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece,
@@ -849,28 +864,28 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
         FROM mr_applied mra
     ) prep
     WHERE CAST(${getIsKingInCheckSQL('prep', 'prep.active_turn_parent')} AS TINYINT) = 0
-    ${(options.useFFP !== false && (maxDepth - depth <= 2) && pAlpha !== undefined && pAlpha !== null) ? ` 
+    ${(options.useFFP !== false && (maxDepth - depth <= 2) && effAlpha !== null) ? `
         AND NOT (
-            prep.active_turn_parent = ${TURNS.WHITE} 
+            prep.active_turn_parent = ${TURNS.WHITE}
             AND prep.is_check_parent = 0
             AND (${getIsKingInCheckSQL('prep', 'prep.active_turn')}) = FALSE
-            AND prep.static_eval < ${pAlpha} - ${PRUNING_MARGIN}
-            AND prep.is_promo = 0
-            AND (
-                prep.is_capture = 0 
-                OR (prep.static_eval + ${getPieceValueCaseSQL('prep.captured_piece')} + ${CAPTURE_MARGIN} < ${pAlpha})
-            )
-        )` : ''}
-    ${(options.useFFP !== false && (maxDepth - depth <= 2) && pBeta !== undefined && pBeta !== null) ? ` 
-        AND NOT (
-            prep.active_turn_parent = ${TURNS.BLACK} 
-            AND prep.is_check_parent = 0
-            AND (${getIsKingInCheckSQL('prep', 'prep.active_turn')}) = FALSE
-            AND prep.static_eval > ${pBeta} + ${PRUNING_MARGIN}
+            AND prep.static_eval < ${effAlpha} - ${PRUNING_MARGIN}
             AND prep.is_promo = 0
             AND (
                 prep.is_capture = 0
-                OR (prep.static_eval - ${getPieceValueCaseSQL('prep.captured_piece')} - ${CAPTURE_MARGIN} > ${pBeta})
+                OR (prep.static_eval + ${getPieceValueCaseSQL('prep.captured_piece')} + ${CAPTURE_MARGIN} < ${effAlpha})
+            )
+        )` : ''}
+    ${(options.useFFP !== false && (maxDepth - depth <= 2) && effBeta !== null) ? `
+        AND NOT (
+            prep.active_turn_parent = ${TURNS.BLACK}
+            AND prep.is_check_parent = 0
+            AND (${getIsKingInCheckSQL('prep', 'prep.active_turn')}) = FALSE
+            AND prep.static_eval > ${effBeta} + ${PRUNING_MARGIN}
+            AND prep.is_promo = 0
+            AND (
+                prep.is_capture = 0
+                OR (prep.static_eval - ${getPieceValueCaseSQL('prep.captured_piece')} - ${CAPTURE_MARGIN} > ${effBeta})
             )
         )` : ''}
     ;

@@ -77,23 +77,41 @@ export function getFFPFilterSQL(options, depth, maxDepth, alpha, beta) {
         return '';
     }
 
+    // Derive "effective" bounds for futility pruning.
+    // The Rest-search window (see NOTE ON PVS WINDOWS in quackmate.js) is intentionally
+    // one-sided: the side matching the root mover gets a real, finite bound (pvScore), while
+    // the OPPOSITE side is deliberately left open at +/-SCORE_INFINITE so the final
+    // backpropagated score is never truncated. FFP is a lossy, heuristic pruning technique
+    // that only decides whether to bother generating/exploring a quiet move - it never
+    // affects the correctness of moves that DO get explored (those are always resolved via
+    // the full, exact search). So when one side of the window is the open sentinel, mirror
+    // the other (finite) side - exactly reproducing the old null-window relationship
+    // beta = alpha + 1 this pruning was originally calibrated against. Without this, an
+    // open alpha/beta silently disables HALF of FFP's pruning (the side belonging to the
+    // non-root mover), rather than the intended "still allow early cutoffs via FFP".
+    const hasAlpha = alpha !== undefined && alpha !== null && alpha > -SCORE_INFINITE;
+    const hasBeta = beta !== undefined && beta !== null && beta < SCORE_INFINITE;
+
+    const effectiveAlpha = hasAlpha ? alpha : (hasBeta ? beta - 1 : null);
+    const effectiveBeta = hasBeta ? beta : (hasAlpha ? alpha + 1 : null);
+
     let clauses = [];
-    if (alpha !== undefined && alpha !== null) {
+    if (effectiveAlpha !== null) {
         clauses.push(`
             NOT (
-                active_turn_parent = ${TURNS.WHITE} 
-                AND static_eval < ${alpha} - ${PRUNING_MARGIN}
+                active_turn_parent = ${TURNS.WHITE}
+                AND static_eval < ${effectiveAlpha} - ${PRUNING_MARGIN}
                 AND is_promo = 0
-                AND is_capture = 0 
+                AND is_capture = 0
             )`);
     }
-    if (beta !== undefined && beta !== null) {
+    if (effectiveBeta !== null) {
         clauses.push(`
             NOT (
-                active_turn_parent = ${TURNS.BLACK} 
-                AND static_eval > ${beta} + ${PRUNING_MARGIN}
+                active_turn_parent = ${TURNS.BLACK}
+                AND static_eval > ${effectiveBeta} + ${PRUNING_MARGIN}
                 AND is_promo = 0
-                AND is_capture = 0 
+                AND is_capture = 0
             )`);
     }
 

@@ -1138,7 +1138,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                         const d2CountRes = await db.query('SELECT COUNT(*) as c FROM batch_d2_nodes');
                         nodesAccumulated += Number(d2CountRes[0].c);
                         
-                        // LMR Logic 
+                        // LMR Logic
                         // Only reduce if LMR is enabled.
                         let searchDepth = id_depth;
                         let isReduced = false;
@@ -1153,10 +1153,30 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                             stats.lmr.reductions++;
                         }
 
+                        // LMR PROBE WINDOW:
+                        // pAlpha/pBeta are intentionally wide (one-sided, see NOTE ON PVS WINDOWS above)
+                        // for the "Rest search" as a whole, to guarantee mathematically exact scores.
+                        // But for the cheap LMR *reduced-depth probe*, we deliberately narrow the window
+                        // back down to a null-window [pAlpha, pAlpha+1] (White) / [pBeta-1, pBeta] (Black).
+                        // Reusing the wide window here would make the reduced search return a real,
+                        // unclamped value that almost always exceeds pAlpha, causing the "unexpectedHigh"
+                        // check below to fire on nearly every batch and forcing a full re-search anyway -
+                        // paying for both the reduced AND the full-depth search, defeating the whole
+                        // purpose of the reduction. This is safe (does not reintroduce the truncated-score
+                        // bug the wide window was introduced to fix) because:
+                        //  - A fail-LOW result under the null window is a valid, provable upper bound
+                        //    (true value <= pAlpha), which is exactly the class of value the
+                        //    bound_only_nodes/pruned_parents logic below already knows how to handle.
+                        //  - A fail-HIGH result always triggers the existing full-width re-search
+                        //    (using the original wide pAlpha/pBeta) a few lines below, which overwrites
+                        //    the clamped probe value with an accurate one.
+                        const probeAlpha = isReduced ? (isWhiteTurn ? pAlpha : pBeta - 1) : pAlpha;
+                        const probeBeta = isReduced ? (isWhiteTurn ? pAlpha + 1 : pBeta) : pBeta;
+
                         // Run Recursion (Reduced or Full)
                         if (searchDepth > 2) {
                             const tDeepStart = performance.now();
-                            await run_persistent_loop(3, searchDepth, pAlpha, pBeta, id_depth); 
+                            await run_persistent_loop(3, searchDepth, probeAlpha, probeBeta, id_depth);
                             stats.timing.rest_deep += (performance.now() - tDeepStart);
                         }
                         // Score
@@ -1168,13 +1188,13 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                             
                             // Check bounds
                             const tCheckStart = performance.now();
-                            const lmrCheckQuery = getLMRCheckSQL(isWhiteTurn, pAlpha, pBeta);
+                            const lmrCheckQuery = getLMRCheckSQL(isWhiteTurn, probeAlpha, probeBeta);
                             if (lmrCheckQuery) {
                                 const check = await db.query(lmrCheckQuery);
                                 if (check.length > 0) unexpectedHigh = true;
                             }
                             stats.timing.lmr_check += (performance.now() - tCheckStart);
-                            
+
                             if (unexpectedHigh) {
                                 const tResearchStart = performance.now();
                                 
@@ -1182,9 +1202,10 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                                 
                                 // Prune frontier_nodes to ONLY keep descendants of depth 1 moves that actually failed high.
                                 // This prevents re-searching other sibling moves in the batch at full depth!
-                                await db.query(getLMRPruneSQL(isWhiteTurn, pAlpha, pBeta));
+                                await db.query(getLMRPruneSQL(isWhiteTurn, probeAlpha, probeBeta));
 
-                                // Run Full Depth from where we left off
+                                // Run Full Depth from where we left off, using the original WIDE window
+                                // so the re-search produces a mathematically exact (non-truncated) score.
                                 await run_persistent_loop(searchDepth + 1, id_depth, pAlpha, pBeta, id_depth);
                                 await run_full_scoring_pass(id_depth, options.maxDepthQS > 0 && id_depth === depth, true);
                                 stats.timing.lmr_research += (performance.now() - tResearchStart);
@@ -1324,7 +1345,6 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                      AND st.minimax_eval = ${topScore}
                      AND st.id NOT IN (SELECT id FROM bound_only_nodes)
                  `);
-                 
                  if (candidates.length > 0) {
                       let best;
                       if (options.randomize && candidates.length > 1) {

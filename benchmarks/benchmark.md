@@ -1,73 +1,73 @@
 Precomputed tables initialized.
 Precomputed tables initialized.
-Starting Benchmark at Max Depth 4 + QS 0, with 1 Threads...
+Starting Main Benchmark at Max Depth 4 + QS 0, with 1 Threads...
 
 ### Board: Perft Pos 1 (Start): rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 5163 | 692.8 |
-| ID (Exhaustive) | b1c3 | -10 | 216365 | 4715 | 1229.8 |
-| BPVS (ID + AB + LMP + Batches) | g1f3 | 0 | 57698 | 2861 | 621.3 |
-| + MVVLVA | g1f3 | 0 | 57698 | 2868 | 615.1 |
-| + TT | g1f3 | 0 | 52514 | 2717 | 591.1 |
-| + PST | b1c3 | -10 | 29039 | 2379 | 525.9 |
-| + Killers | b1c3 | -10 | 29038 | 2384 | 530.8 |
-| + History | b1c3 | -10 | 29038 | 2409 | 528.6 |
-| + RFP | b1c3 | -10 | 29038 | 2427 | 524.2 |
-| + FFP | b1c3 | -10 | 20545 | 2293 | 492.7 |
-| + LMR | b1c3 | -10 | 20273 | 2233 | 498.0 |
-| JS DFS Reference | b1c3 | -10 | 1750 | 119 | 235.4 |
+| Recursive (Exhaustive) | b1c3 | -10 | 206604 | 4560 | 689.1 |
+| ID (Exhaustive) | b1c3 | -10 | 216365 | 4375 | 1232.3 |
+| BPVS (ID + AB + LMP + Batches) | b1c3 | -10 | 56971 | 2688 | 637.6 |
+| + MVVLVA | b1c3 | -10 | 56971 | 2692 | 647.8 |
+| + TT | g1f3 | 0 | 107049 | 3243 | 868.8 |
+| + PST | b1c3 | -10 | 29039 | 2281 | 528.2 |
+| + Killers | b1c3 | -10 | 29038 | 2225 | 531.1 |
+| + History | b1c3 | -10 | 29038 | 2250 | 531.8 |
+| + RFP | b1c3 | -10 | 29038 | 2302 | 539.6 |
+| + FFP | b1c3 | -10 | 20545 | 2292 | 498.4 |
+| + LMR | b1c3 | -10 | 20273 | 2097 | 496.8 |
+| JS DFS Reference | b1c3 | -10 | 1750 | 114 | 237.0 |
 
 
 ### Board: Perft Pos 2 (Complex Mid-game): r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 84378 | 9743.8 |
-| ID (Exhaustive) | c3d5 | -170 | 4078946 | 48067 | 15051.3 |
-| BPVS (ID + AB + LMP + Batches) | c3d5 | -170 | 98530 | 3878 | 1843.1 |
-| + MVVLVA | c3d5 | -170 | 26529 | 2539 | 1530.5 |
-| + TT | c3d5 | -170 | 25460 | 2508 | 1530.2 |
-| + PST | c3d5 | -170 | 27987 | 2648 | 1553.2 |
-| + Killers | c3d5 | -170 | 27987 | 2605 | 1558.9 |
-| + History | c3d5 | -170 | 27987 | 2801 | 1556.2 |
-| + RFP | c3d5 | -170 | 19364 | 2658 | 1543.9 |
-| + FFP | c3d5 | -170 | 15977 | 2592 | 1501.5 |
-| + LMR | c3d5 | -170 | 34269 | 2954 | 1628.1 |
-| JS DFS Reference | c3d5 | -170 | 1476 | 103 | 1261.5 |
+| Recursive (Exhaustive) | c3d5 | -170 | 3984805 | 71177 | 9732.1 |
+| ID (Exhaustive) | c3d5 | -170 | 4078946 | 43876 | 14814.6 |
+| BPVS (ID + AB + LMP + Batches) | c3d5 | -170 | 97733 | 3652 | 1840.7 |
+| + MVVLVA | c3d5 | -170 | 26547 | 2338 | 1500.4 |
+| + TT | c3d5 | -170 | 25500 | 2386 | 1501.6 |
+| + PST | c3d5 | -170 | 27987 | 2479 | 1521.2 |
+| + Killers | c3d5 | -170 | 27987 | 2441 | 1548.1 |
+| + History | c3d5 | -170 | 27987 | 2461 | 1537.1 |
+| + RFP | c3d5 | -170 | 19364 | 2308 | 1497.5 |
+| + FFP | c3d5 | -170 | 15977 | 2460 | 1478.3 |
+| + LMR | c3d5 | -170 | 34269 | 2613 | 1611.1 |
+| JS DFS Reference | c3d5 | -170 | 1476 | 91 | 1242.9 |
 
 
 ### Board: Perft Pos 3 (KiwiPete): r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | e2a6 | 65 | 4002708 | 91310 | 10021.5 |
-| ID (Exhaustive) | e2a6 | 65 | 4100812 | 54381 | 13451.3 |
-| BPVS (ID + AB + LMP + Batches) | e2a6 | 65 | 91564 | 3785 | 1615.0 |
-| + MVVLVA | e2a6 | 65 | 25460 | 2528 | 1310.0 |
-| + TT | e2a6 | 65 | 26102 | 2465 | 1319.8 |
-| + PST | e2a6 | 65 | 26082 | 2528 | 1315.6 |
-| + Killers | e2a6 | 65 | 26085 | 2537 | 1324.9 |
-| + History | e2a6 | 65 | 26083 | 2529 | 1321.1 |
-| + RFP | e2a6 | 65 | 15480 | 2401 | 1273.7 |
-| + FFP | e2a6 | 65 | 13864 | 2418 | 1285.3 |
-| + LMR | e2a6 | 65 | 13864 | 2368 | 1279.3 |
-| JS DFS Reference | e2a6 | 75 | 2195 | 125 | 1051.6 |
+| Recursive (Exhaustive) | e2a6 | 65 | 4002708 | 78630 | 10017.5 |
+| ID (Exhaustive) | e2a6 | 65 | 4100812 | 49817 | 15237.9 |
+| BPVS (ID + AB + LMP + Batches) | e2a6 | 65 | 105322 | 3969 | 1647.2 |
+| + MVVLVA | e2a6 | 65 | 25155 | 2393 | 1281.2 |
+| + TT | e2a6 | 65 | 26093 | 2410 | 1291.1 |
+| + PST | e2a6 | 65 | 26084 | 2421 | 1298.3 |
+| + Killers | e2a6 | 65 | 26085 | 2363 | 1292.0 |
+| + History | e2a6 | 65 | 26083 | 2391 | 1301.9 |
+| + RFP | e2a6 | 65 | 15480 | 2262 | 1250.4 |
+| + FFP | e2a6 | 65 | 13864 | 2207 | 1253.6 |
+| + LMR | e2a6 | 65 | 13864 | 2102 | 1254.7 |
+| JS DFS Reference | e2a6 | 75 | 2195 | 112 | 1042.6 |
 
 
 ### Board: Perft Pos 4 (Endgame): 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1448 | 1200.5 |
-| ID (Exhaustive) | b4f4 | 10 | 49336 | 2952 | 1438.6 |
-| BPVS (ID + AB + LMP + Batches) | b4f4 | 10 | 9933 | 1995 | 1261.7 |
-| + MVVLVA | b4f4 | 10 | 12359 | 2069 | 1274.8 |
-| + TT | b4f4 | 10 | 8557 | 2101 | 1280.7 |
-| + PST | b4f4 | 10 | 7609 | 2141 | 1273.9 |
-| + Killers | b4f4 | 10 | 6042 | 2058 | 1265.8 |
-| + History | b4f4 | 10 | 6042 | 2176 | 1253.8 |
-| + RFP | b4f4 | 10 | 6042 | 2092 | 1258.1 |
-| + FFP | b4f4 | 10 | 5589 | 2336 | 1268.0 |
-| + LMR | b4f4 | 10 | 5589 | 2114 | 1262.8 |
-| JS DFS Reference | b4f4 | 10 | 945 | 34 | 1049.6 |
+| Recursive (Exhaustive) | b4f4 | 10 | 46103 | 1208 | 1197.5 |
+| ID (Exhaustive) | b4f4 | 10 | 49336 | 2544 | 1412.7 |
+| BPVS (ID + AB + LMP + Batches) | b4f4 | 10 | 16092 | 2064 | 1290.6 |
+| + MVVLVA | b4f4 | 10 | 14883 | 2142 | 1266.9 |
+| + TT | b4f4 | 10 | 9403 | 2049 | 1260.9 |
+| + PST | b4f4 | 10 | 7609 | 1950 | 1247.9 |
+| + Killers | b4f4 | 10 | 6042 | 1867 | 1244.0 |
+| + History | b4f4 | 10 | 6042 | 1881 | 1244.1 |
+| + RFP | b4f4 | 10 | 6042 | 1885 | 1226.0 |
+| + FFP | b4f4 | 10 | 5589 | 1966 | 1235.0 |
+| + LMR | b4f4 | 10 | 5589 | 1859 | 1229.2 |
+| JS DFS Reference | b4f4 | 10 | 930 | 32 | 1036.4 |
 
 
 ================================================================================
@@ -77,53 +77,53 @@ Starting Benchmark at Max Depth 4 + QS 0, with 1 Threads...
 ### Board: Perft Pos 1 (Start): rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | b1c3 | -10 | 20273 | 2384 | 1318.8 |
-| BPVS + LMR (4 + QS=1) | d2d4 | 0 | 26677 | 3895 | 1701.3 |
-| BPVS + LMR (4 + QS=2) | d2d4 | 0 | 33180 | 4572 | 1794.7 |
-| BPVS + LMR (5 + QS=0) | d2d4 | 110 | 251762 | 7280 | 2199.5 |
-| JS DFS (4 + QS=0) | b1c3 | -10 | 1750 | 127 | 1067.1 |
-| JS DFS (4 + QS=1) | d2d4 | 0 | 2220 | 191 | 1069.0 |
-| JS DFS (4 + QS=2) | d2d4 | 0 | 2314 | 206 | 1070.1 |
-| JS DFS (5 + QS=0) | b1c3 | 110 | 3801 | 227 | 1070.3 |
+| BPVS + LMR (4 + QS=0) | b1c3 | -10 | 20273 | 2099 | 1308.2 |
+| BPVS + LMR (4 + QS=1) | d2d4 | 0 | 18211 | 2492 | 1413.5 |
+| BPVS + LMR (4 + QS=2) | d2d4 | 0 | 20393 | 2736 | 1461.4 |
+| BPVS + LMR (5 + QS=0) | b1c3 | 110 | 251762 | 6424 | 2336.9 |
+| JS DFS (4 + QS=0) | b1c3 | -10 | 1750 | 109 | 1054.9 |
+| JS DFS (4 + QS=1) | d2d4 | 0 | 2220 | 156 | 1055.9 |
+| JS DFS (4 + QS=2) | d2d4 | 0 | 2314 | 175 | 1058.7 |
+| JS DFS (5 + QS=0) | b1c3 | 110 | 3801 | 197 | 1058.7 |
 
 
 ### Board: Perft Pos 2 (Complex Mid-game): r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | c3d5 | -170 | 34269 | 3165 | 1431.9 |
-| BPVS + LMR (4 + QS=1) | c3d5 | 330 | 124186 | 6929 | 2193.9 |
-| BPVS + LMR (4 + QS=2) | c3d5 | 85 | 201536 | 9569 | 2817.6 |
-| BPVS + LMR (5 + QS=0) | c3d5 | 410 | 274022 | 9369 | 2484.7 |
-| JS DFS (4 + QS=0) | c3d5 | -170 | 1476 | 99 | 1074.9 |
-| JS DFS (4 + QS=1) | e2d2 | 255 | 9913 | 689 | 1077.5 |
-| JS DFS (4 + QS=2) | c3d5 | 85 | 5424 | 498 | 1077.5 |
-| JS DFS (5 + QS=0) | c3d5 | 410 | 4829 | 243 | 1077.5 |
+| BPVS + LMR (4 + QS=0) | c3d5 | -170 | 34269 | 2638 | 1418.9 |
+| BPVS + LMR (4 + QS=1) | g5f6 | 65 | 79975 | 4401 | 1854.4 |
+| BPVS + LMR (4 + QS=2) | c3d5 | 85 | 120887 | 6222 | 2037.5 |
+| BPVS + LMR (5 + QS=0) | c3d5 | 410 | 274022 | 8293 | 2534.8 |
+| JS DFS (4 + QS=0) | c3d5 | -170 | 1476 | 102 | 1061.7 |
+| JS DFS (4 + QS=1) | e2d2 | 255 | 9913 | 634 | 1064.8 |
+| JS DFS (4 + QS=2) | c3d5 | 85 | 5424 | 464 | 1065.0 |
+| JS DFS (5 + QS=0) | c3d5 | 410 | 4829 | 220 | 1065.8 |
 
 
 ### Board: Perft Pos 3 (KiwiPete): r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | e2a6 | 65 | 13864 | 2288 | 1281.0 |
-| BPVS + LMR (4 + QS=1) | d2g5 | 230 | 72274 | 5087 | 1687.6 |
-| BPVS + LMR (4 + QS=2) | e2a6 | 70 | 380877 | 13925 | 3544.4 |
-| BPVS + LMR (5 + QS=0) | e2a6 | 445 | 267792 | 8854 | 2323.4 |
-| JS DFS (4 + QS=0) | e2a6 | 75 | 2195 | 123 | 1063.0 |
-| JS DFS (4 + QS=1) | e2a6 | 270 | 6826 | 515 | 1064.5 |
-| JS DFS (4 + QS=2) | e2a6 | 75 | 13004 | 1204 | 1064.5 |
-| JS DFS (5 + QS=0) | e2a6 | 375 | 7322 | 375 | 1064.7 |
+| BPVS + LMR (4 + QS=0) | e2a6 | 65 | 13864 | 2110 | 1259.3 |
+| BPVS + LMR (4 + QS=1) | e2a6 | 175 | 65328 | 4125 | 1679.4 |
+| BPVS + LMR (4 + QS=2) | e2a6 | 70 | 198144 | 7597 | 2348.3 |
+| BPVS + LMR (5 + QS=0) | e2a6 | 445 | 267792 | 7780 | 2313.8 |
+| JS DFS (4 + QS=0) | e2a6 | 75 | 2195 | 104 | 1060.8 |
+| JS DFS (4 + QS=1) | e2a6 | 270 | 6826 | 451 | 1061.4 |
+| JS DFS (4 + QS=2) | e2a6 | 75 | 13004 | 1083 | 1061.7 |
+| JS DFS (5 + QS=0) | e2a6 | 375 | 7322 | 337 | 1061.7 |
 
 
 ### Board: Perft Pos 4 (Endgame): 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1
 | Config | Move | Score | Nodes | Time (ms) | Peak RSS (MB) |
 |---|---|---|---|---|---|
-| BPVS + LMR (4 + QS=0) | b4f4 | 10 | 5589 | 2047 | 1245.1 |
-| BPVS + LMR (4 + QS=1) | e2e3 | 10 | 40343 | 4101 | 1715.5 |
-| BPVS + LMR (4 + QS=2) | e2e3 | 10 | 32919 | 4158 | 1647.5 |
-| BPVS + LMR (5 + QS=0) | b4f4 | 110 | 40378 | 3508 | 1431.1 |
-| JS DFS (4 + QS=0) | b4f4 | 10 | 945 | 33 | 1063.6 |
-| JS DFS (4 + QS=1) | e2e4 | 75 | 2608 | 76 | 1065.2 |
-| JS DFS (4 + QS=2) | b4f4 | 10 | 3011 | 102 | 1066.4 |
-| JS DFS (5 + QS=0) | b4f4 | 110 | 2827 | 79 | 1066.4 |
+| BPVS + LMR (4 + QS=0) | b4f4 | 10 | 5589 | 1880 | 1222.9 |
+| BPVS + LMR (4 + QS=1) | b4f4 | 10 | 31524 | 3341 | 1595.9 |
+| BPVS + LMR (4 + QS=2) | b4f4 | 10 | 29945 | 3659 | 1603.2 |
+| BPVS + LMR (5 + QS=0) | b4f4 | 110 | 40378 | 3433 | 1427.2 |
+| JS DFS (4 + QS=0) | b4f4 | 10 | 930 | 30 | 1051.3 |
+| JS DFS (4 + QS=1) | e2e4 | 75 | 2477 | 75 | 1056.2 |
+| JS DFS (4 + QS=2) | b4f4 | 10 | 2948 | 111 | 1056.2 |
+| JS DFS (5 + QS=0) | b4f4 | 110 | 2702 | 73 | 1056.2 |
 
 
-Benchmark Complete.
+All Benchmarks Complete.
