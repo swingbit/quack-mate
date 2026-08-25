@@ -44,7 +44,7 @@ export const RESTRICTED_MODE_LIMITS = {
 
 // Bitboard Masks (U64 as decimal strings for SQL injection, used as BigInt in JS)
 export const MASK_FILE_A = '72340172838076673';      // 0x0101010101010101
-export const MASK_FILE_H = '9259542123273830528';    // 0x8080808080808080
+export const MASK_FILE_H = '9259542123273814144';    // 0x8080808080808080
 export const MASK_RANK_2 = '65280';                  // 0x000000000000FF00
 export const MASK_RANK_7 = '71776119061217280';      // 0x00FF000000000000
 export const MASK_FULL   = '18446744073709551615';   // 0xFFFFFFFFFFFFFFFF
