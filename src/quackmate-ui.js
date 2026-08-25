@@ -206,11 +206,11 @@ class RemoteEngine {
     return result;
   }
 
-  async makeMove(fen, from, to) {
+  async makeMove(fen, from, to, promotion = 'q') {
     const response = await fetch(`${this.baseUrl}/${this.engineId}/try_apply_move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fen, from, to })
+      body: JSON.stringify({ fen, from, to, promotion })
     });
     if (!response.ok) throw new Error(await response.text());
     const data = await response.json();
@@ -1506,6 +1506,57 @@ function processMoveResult(data, duration, turn) {
 
 // --- Board Callbacks ---
 
+function promptPromotion(color) {
+  return new Promise((resolve) => {
+    const $modal = $('#modal-promotion');
+    const prefix = color === 'white' ? 'w' : 'b';
+    $('#promo-img-q').attr('src', `img/chesspieces/wikipedia/${prefix}Q.png`);
+    $('#promo-img-r').attr('src', `img/chesspieces/wikipedia/${prefix}R.png`);
+    $('#promo-img-b').attr('src', `img/chesspieces/wikipedia/${prefix}B.png`);
+    $('#promo-img-n').attr('src', `img/chesspieces/wikipedia/${prefix}N.png`);
+
+    $modal.addClass('active');
+
+    const cleanup = () => {
+      $modal.removeClass('active');
+      $('.promo-choice-btn').off('click', handleChoice);
+      $('#modal-cancel-promotion').off('click', handleCancel);
+      $modal.off('click', handleOverlayClick);
+      $(document).off('keydown', handleKeyDown);
+    };
+
+    const handleChoice = function() {
+      const promo = $(this).data('promo');
+      cleanup();
+      resolve(promo);
+    };
+
+    const handleCancel = function() {
+      cleanup();
+      resolve(null);
+    };
+
+    const handleOverlayClick = function(e) {
+      if (e.target === this) {
+        cleanup();
+        resolve(null);
+      }
+    };
+
+    const handleKeyDown = function(e) {
+      if (e.key === 'Escape') {
+        cleanup();
+        resolve(null);
+      }
+    };
+
+    $('.promo-choice-btn').on('click', handleChoice);
+    $('#modal-cancel-promotion').on('click', handleCancel);
+    $modal.on('click', handleOverlayClick);
+    $(document).on('keydown', handleKeyDown);
+  });
+}
+
 async function onDrop(source, target, piece, newPos, oldPos, orientation) {
   if (is_thinking) return 'snapback';
 
@@ -1515,6 +1566,10 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
 
   if (target === 'offboard') return;
 
+  const isPromotion = (piece === 'wP' && target.charAt(1) === '8') || (piece === 'bP' && target.charAt(1) === '1');
+  let promotionChoice = 'q';
+  let reply;
+
   // Use default engine (arbiter) for validation
   // Hook up logger to human console
   const color = turn;
@@ -1523,9 +1578,35 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
     logToPlayerConsole(color, sql);
   });
 
-  console.log(`[DEBUG] Human move Attempt: ${source}->${target} | FEN: ${last_fen}`);
+  if (isPromotion) {
+    // Validate move legality before showing the promotion modal
+    const testReply = await try_apply_move(last_fen, source, target, 'q');
+    if (testReply == undefined || testReply === 'illegal_move' || testReply.search(/illegal/) !== -1) {
+      setQueryLogger(null);
+      console.error(`[DEBUG] Move Rejected (illegal pawn move): ${source}->${target}. Reply: ${testReply}`);
+      is_move_legit = false;
+      board.position(last_fen, true);
+      return 'snapback';
+    }
 
-  const reply = await try_apply_move(last_fen, source, target);
+    // Move is legal: prompt the human player for their promotion piece choice
+    promotionChoice = await promptPromotion(turn);
+    if (!promotionChoice) {
+      // User cancelled promotion (clicked outside / pressed Escape / Cancel button)
+      setQueryLogger(null);
+      board.position(last_fen, true);
+      return 'snapback';
+    }
+
+    if (promotionChoice === 'q') {
+      reply = testReply;
+    } else {
+      reply = await try_apply_move(last_fen, source, target, promotionChoice);
+    }
+  } else {
+    console.log(`[DEBUG] Human move Attempt: ${source}->${target} | FEN: ${last_fen}`);
+    reply = await try_apply_move(last_fen, source, target);
+  }
 
   setQueryLogger(null); // Detach logger
 
@@ -1539,8 +1620,9 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
   } else {
     is_move_legit = true;
     const pieceChar = piece.charAt(1); // 'wP' -> 'P'
+    const promoSuffix = isPromotion ? `=${promotionChoice.toUpperCase()}` : '';
     const duration = performance.now() - turn_start_time;
-    record_last_move(reply, `${pieceChar} ${source}-${target}`, null, duration, 0);
+    record_last_move(reply, `${pieceChar} ${source}-${target}${promoSuffix}`, null, duration, 0);
 
     // Record Human Stats
     // reply is new FEN, so turn has flipped. We want stats for the player who JUST moved.
@@ -1696,7 +1778,7 @@ export async function init() {
     $('#reset-modal').removeClass('active');
   });
 
-  $('.modal-overlay').on('click', function(e) {
+  $('.modal-overlay').not('#modal-promotion').on('click', function(e) {
     if (e.target === this) {
       $(this).removeClass('active');
     }

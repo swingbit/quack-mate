@@ -84,10 +84,10 @@ export class EngineInstance {
         }
     }
 
-    async try_apply_move(fromFEN, fromPos, toPos) {
+    async try_apply_move(fromFEN, fromPos, toPos, promotion = 'q') {
         await this.query("BEGIN TRANSACTION");
         try {
-            const result = await try_apply_move_logic(this, fromFEN, fromPos, toPos);
+            const result = await try_apply_move_logic(this, fromFEN, fromPos, toPos, promotion);
             return result;
         } finally {
             await this.query("ROLLBACK");
@@ -170,9 +170,9 @@ export async function find_best_move(fromFEN, options) {
     return defaultInstance.find_best_move(fromFEN, options);
 }
 
-export async function try_apply_move(fromFEN, fromPos, toPos) {
+export async function try_apply_move(fromFEN, fromPos, toPos, promotion = 'q') {
     if (!defaultInstance) throw new Error("Engine not initialized");
-    return defaultInstance.try_apply_move(fromFEN, fromPos, toPos);
+    return defaultInstance.try_apply_move(fromFEN, fromPos, toPos, promotion);
 }
 
 export async function check_end_game(fromFEN) {

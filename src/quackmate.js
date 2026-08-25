@@ -537,33 +537,45 @@ async function execute_recursive_search(db, opts) {
     if (opts.returnAllMoves) {
         return {
             nodes: Number(allMovesResult[0].total_nodes), // First row has total count
-            moves: allMovesResult.map(row => ({
-                 from_sq: row.from_sq,
-                 to_sq: row.to_sq,
-                 piece: row.piece,
-                 is_castle: !!row.is_castle,
-                 is_promo: !!row.is_promo,
-                 score: Number(row.minimax_eval)
-            }))
+            moves: allMovesResult.map(row => {
+                const promoChar = row.is_promo && row.promo_piece ? pieceIdToChar(row.promo_piece).toLowerCase() : undefined;
+                return {
+                    from_sq: row.from_sq,
+                    to_sq: row.to_sq,
+                    piece: row.piece,
+                    is_castle: !!row.is_castle,
+                    is_promo: !!row.is_promo,
+                    promo_piece: row.promo_piece,
+                    from: squareIndexToAlgebraic(row.from_sq),
+                    to: squareIndexToAlgebraic(row.to_sq),
+                    ...(promoChar ? { promotion: promoChar } : {}),
+                    score: Number(row.minimax_eval)
+                };
+            })
         };
     }
 
     // best_move CTE logic returns rows ordered by score
-    const bestRow = allMovesResult[0]; 
+    const bestRow = allMovesResult[0];
     
     if (bestRow.total_nodes !== undefined) {
          totalNodes = Number(bestRow.total_nodes);
-    } 
+    }
 
+    const promoChar = bestRow.is_promo && bestRow.promo_piece ? pieceIdToChar(bestRow.promo_piece).toLowerCase() : undefined;
     return {
         fen: null, // caller has FEN
         nodes: totalNodes,
-        move: { 
-            from_sq: bestRow.from_sq, 
-            to_sq: bestRow.to_sq, 
+        move: {
+            from_sq: bestRow.from_sq,
+            to_sq: bestRow.to_sq,
             piece: bestRow.piece,
             is_castle: !!bestRow.is_castle,
-            is_promo: !!bestRow.is_promo
+            is_promo: !!bestRow.is_promo,
+            promo_piece: bestRow.promo_piece,
+            from: squareIndexToAlgebraic(bestRow.from_sq),
+            to: squareIndexToAlgebraic(bestRow.to_sq),
+            ...(promoChar ? { promotion: promoChar } : {})
         },
         score: Number(bestRow.minimax_eval)
     };
@@ -628,7 +640,7 @@ async function find_best_move_recursive(db, fromFEN, opts) {
  * @param {string} toPos - Target square (e.g., 'e4')
  * @returns {string} New FEN if legal, or error message
  */
-export async function try_apply_move(db, fromFEN, fromPos, toPos) {
+export async function try_apply_move(db, fromFEN, fromPos, toPos, promotion = 'q') {
     await db.query(getClearBoardSQL());
     const { boardInsertSql, stateInsertSql } = parseFen(fromFEN);
     await db.query(boardInsertSql);
@@ -644,8 +656,13 @@ export async function try_apply_move(db, fromFEN, fromPos, toPos) {
     // Generate pseudo-legal moves
     const pseudoLegalMoves = await generatePseudoLegalMoves(db, isWhiteTurn);
 
-    // Check if the move is in the list
-    const move = pseudoLegalMoves.find(m => m.from_sq === from_sq_index && m.to_sq === to_sq_index);
+    // Check if the move is in the list (considering promotion piece when applicable)
+    const targetPromoPiece = promotion ? (isWhiteTurn ? PIECES[promotion.toUpperCase()] : PIECES[promotion.toLowerCase()]) : null;
+    const move = pseudoLegalMoves.find(m =>
+        m.from_sq === from_sq_index &&
+        m.to_sq === to_sq_index &&
+        (!m.is_promo || !targetPromoPiece || m.promo_piece === targetPromoPiece)
+    );
 
     if (!move) {
         return 'illegal_move: not in pseudo-legal moves';
@@ -860,6 +877,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
 
     let nodesAccumulated = 0;
     let currentBestMove = null;
+    let currentBestMoveRaw = null;
     let previousBestMove = null;
     let currentBestScore = 0;
     
@@ -997,11 +1015,13 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
         if (previousBestMove) {
              const prevFrom = algebraicToSquareIndex(previousBestMove.from);
              const prevTo = algebraicToSquareIndex(previousBestMove.to);
+             const prevPromo = previousBestMove.promotion ? (isWhiteTurn ? PIECES[previousBestMove.promotion.toUpperCase()] : PIECES[previousBestMove.promotion.toLowerCase()]) : 0;
+             const promoClause = prevPromo ? `AND promo_piece=${prevPromo}` : `AND (promo_piece IS NULL OR promo_piece=0)`;
              // Verify the move exists at depth 1.
-             const pvCheck = await db.query(`SELECT id FROM search_tree WHERE depth=1 AND from_sq=${prevFrom} AND to_sq=${prevTo} LIMIT 1`);
+             const pvCheck = await db.query(`SELECT id FROM search_tree WHERE depth=1 AND from_sq=${prevFrom} AND to_sq=${prevTo} ${promoClause} LIMIT 1`);
              if (pvCheck.length > 0) {
                  pvId = Number(pvCheck[0].id);
-             } 
+             }
         }
 
         if (pvId === -1) {
@@ -1339,7 +1359,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             if (bestScoreRes.length > 0) {
                  const topScore = Number(bestScoreRes[0].minimax_eval);
                  const candidates = await db.query(`
-                     SELECT st.from_sq, st.to_sq, st.piece, st.minimax_eval, st.static_eval
+                     SELECT st.id, st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.minimax_eval, st.static_eval
                      FROM search_tree st
                      WHERE st.depth = 1
                      AND st.minimax_eval = ${topScore}
@@ -1350,24 +1370,28 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                       if (options.randomize && candidates.length > 1) {
                            best = candidates[Math.floor(Math.random() * candidates.length)];
                       } else {
-                           // Deterministic tie-breaking: sort by static_eval, then by from_sq, to_sq
+                           // Deterministic tie-breaking: sort by static_eval, then by from_sq, to_sq, promo_piece
                            candidates.sort((a, b) => {
                                if (a.static_eval !== b.static_eval) {
-                                   return isWhiteTurn 
-                                       ? b.static_eval - a.static_eval 
+                                   return isWhiteTurn
+                                       ? b.static_eval - a.static_eval
                                        : a.static_eval - b.static_eval;
                                }
                                if (a.from_sq !== b.from_sq) return a.from_sq - b.from_sq;
-                               return a.to_sq - b.to_sq;
+                               if (a.to_sq !== b.to_sq) return a.to_sq - b.to_sq;
+                               return (b.promo_piece || 0) - (a.promo_piece || 0);
                            });
                            best = candidates[0];
                       }
                       currentBestScore = Number(best.minimax_eval);
-                      currentBestMove = { 
-                         from: squareIndexToAlgebraic(best.from_sq), 
+                      const promoChar = best.is_promo && best.promo_piece ? pieceIdToChar(best.promo_piece).toLowerCase() : undefined;
+                      currentBestMove = {
+                         from: squareIndexToAlgebraic(best.from_sq),
                          to: squareIndexToAlgebraic(best.to_sq),
-                         piece: pieceIdToChar(best.piece) 
+                         piece: pieceIdToChar(best.piece),
+                         ...(promoChar ? { promotion: promoChar } : {})
                       };
+                      currentBestMoveRaw = best;
                       previousBestMove = currentBestMove;
                  }
             }
@@ -1378,11 +1402,9 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             }
 
             // Track PV Accuracy
-            if (currentBestMove) {
-                 const bestIdStr = (await db.query(`SELECT id FROM search_tree WHERE depth=1 AND from_sq=${algebraicToSquareIndex(currentBestMove.from)} AND to_sq=${algebraicToSquareIndex(currentBestMove.to)} LIMIT 1`))[0]?.id;
-                 const bestId = Number(bestIdStr);
+            if (currentBestMoveRaw) {
                  stats.pv_accuracy.total++;
-                 if (bestId === pvId) {
+                 if (currentBestMoveRaw.id === pvId) {
                      stats.pv_accuracy.correct++;
                  }
             }
@@ -1392,27 +1414,18 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
     
     // Apply final move
     const finalGameState = (await db.query('SELECT * FROM game_state;'))[0];
-    if (currentBestMove) {
+    if (currentBestMoveRaw) {
         // console.log('Final Move Selected:', currentBestMove.from + '-' + currentBestMove.to);
         previousBestMove = currentBestMove; // Update for next depth loop (if we were inside the loop, but here we return)
 
-        // Need raw move details to apply.
-        // We only stored algebraic.
-        // Let's re-query or store raw in currentBestMoveRaw.
-        const fromSq = algebraicToSquareIndex(currentBestMove.from);
-        const toSq = algebraicToSquareIndex(currentBestMove.to);
-        // Getting raw details from DB is safer.
-        const rawMoveRes = await db.query(`SELECT * FROM search_tree WHERE depth=1 AND from_sq=${fromSq} AND to_sq=${toSq} LIMIT 1`);
-        if (rawMoveRes.length > 0) {
-            const raw = rawMoveRes[0];
-            await db.query(getApplyMoveSQL({
-                from_sq: raw.from_sq,
-                to_sq: raw.to_sq,
-                piece: raw.piece,
-                isCastle: raw.is_castle,
-                isPromo: raw.is_promo
-            }, isWhiteTurn, finalGameState));
-        }
+        await db.query(getApplyMoveSQL({
+            from_sq: currentBestMoveRaw.from_sq,
+            to_sq: currentBestMoveRaw.to_sq,
+            piece: currentBestMoveRaw.piece,
+            isCastle: currentBestMoveRaw.is_castle,
+            isPromo: currentBestMoveRaw.is_promo,
+            promoPiece: currentBestMoveRaw.promo_piece
+        }, isWhiteTurn, finalGameState));
     }
 
     const finalFEN = await toFen(db);
@@ -1421,20 +1434,27 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
     
     if (options.returnAllMoves) {
         const allMoves = await db.query(`
-            SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.minimax_eval
+            SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.minimax_eval
             FROM search_tree st
-            WHERE st.depth = 1 
+            WHERE st.depth = 1
             AND st.minimax_eval IS NOT NULL
             ORDER BY st.minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}
         `);
-        result.moves = allMoves.map(m => ({
-            from_sq: m.from_sq,
-            to_sq: m.to_sq,
-            piece: m.piece,
-            is_castle: !!m.is_castle,
-            is_promo: !!m.is_promo,
-            score: Number(m.minimax_eval) * (isWhiteTurn ? 1 : -1)
-        }));
+        result.moves = allMoves.map(m => {
+            const promoChar = m.is_promo && m.promo_piece ? pieceIdToChar(m.promo_piece).toLowerCase() : undefined;
+            return {
+                from_sq: m.from_sq,
+                to_sq: m.to_sq,
+                piece: m.piece,
+                is_castle: !!m.is_castle,
+                is_promo: !!m.is_promo,
+                promo_piece: m.promo_piece,
+                from: squareIndexToAlgebraic(m.from_sq),
+                to: squareIndexToAlgebraic(m.to_sq),
+                ...(promoChar ? { promotion: promoChar } : {}),
+                score: Number(m.minimax_eval) * (isWhiteTurn ? 1 : -1)
+            };
+        });
     }
     
     return result;

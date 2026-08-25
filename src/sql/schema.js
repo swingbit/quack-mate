@@ -157,11 +157,11 @@ export function getInitSchemaSQL() {
         DROP TABLE IF EXISTS search_tree;
         CREATE TABLE search_tree (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -232,11 +232,11 @@ export function getInitSearchTablesSQL() {
         DROP TABLE IF EXISTS search_tree;
         CREATE TABLE search_tree (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -251,11 +251,11 @@ export function getInitSearchTablesSQL() {
         DROP TABLE IF EXISTS frontier_nodes;
         CREATE TABLE frontier_nodes (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -265,11 +265,11 @@ export function getInitSearchTablesSQL() {
         DROP TABLE IF EXISTS next_frontier_nodes;
         CREATE TABLE next_frontier_nodes (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -280,11 +280,11 @@ export function getInitSearchTablesSQL() {
         DROP TABLE IF EXISTS candidates_v2;
         CREATE TABLE candidates_v2 (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -295,11 +295,11 @@ export function getInitSearchTablesSQL() {
         DROP TABLE IF EXISTS search_space;
         CREATE TABLE search_space (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -309,18 +309,18 @@ export function getInitSearchTablesSQL() {
         -- All Moves (for basic search)
         DROP TABLE IF EXISTS all_moves;
         CREATE TABLE all_moves (
-            parent_id INTEGER, from_sq INTEGER, to_sq INTEGER, piece TINYINT, is_castle TINYINT, is_promo TINYINT
+            parent_id INTEGER, from_sq INTEGER, to_sq INTEGER, piece TINYINT, is_castle TINYINT, is_promo TINYINT, promo_piece TINYINT
         );
 
         -- Expanded (Derived States)
         DROP TABLE IF EXISTS expanded;
         CREATE TABLE expanded (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -331,11 +331,11 @@ export function getInitSearchTablesSQL() {
         DROP TABLE IF EXISTS legal_expanded;
         CREATE TABLE legal_expanded (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -346,11 +346,11 @@ export function getInitSearchTablesSQL() {
         DROP TABLE IF EXISTS legal_hashed_v2;
         CREATE TABLE legal_hashed_v2 (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,
@@ -383,7 +383,8 @@ export function getRecreateCandidatesV2SQL() {
             piece TINYINT,
             is_capture TINYINT,
             is_check TINYINT,
-            static_eval INTEGER
+            static_eval INTEGER,
+            promo_piece TINYINT
         );
     `;
 }
@@ -394,11 +395,11 @@ export function getRecreateFrontierNodesSQL() {
         DROP TABLE IF EXISTS frontier_nodes;
         CREATE TABLE frontier_nodes (
             id INTEGER PRIMARY KEY, parent_id INTEGER, depth TINYINT, from_sq TINYINT, to_sq TINYINT, piece TINYINT,
-            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT,
+            is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT,
-            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE}, 
+            static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
             active_king_sq TINYINT, passive_king_sq TINYINT,

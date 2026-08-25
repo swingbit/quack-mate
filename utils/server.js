@@ -106,8 +106,8 @@ app.post('/:engineId/best_move', getEngine, async (req, res) => {
 // Make Move (Validation/Arbiter)
 app.post('/:engineId/try_apply_move', getEngine, async (req, res) => {
     try {
-        const { fen, from, to } = req.body;
-        const result = await executeWithLogging(req, () => req.engine.try_apply_move(fen, from, to));
+        const { fen, from, to, promotion } = req.body;
+        const result = await executeWithLogging(req, () => req.engine.try_apply_move(fen, from, to, promotion));
         // try_apply_move returns newFEN string OR error string.
         // executeWithLogging wraps it in { result: "...", logs: [] }
         res.json(result);

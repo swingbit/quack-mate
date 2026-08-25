@@ -37,16 +37,16 @@ async function playMatch() {
 
             // Validate using standard reference chess.js library
             const moves = chess.moves({ verbose: true });
-            const valid = moves.find(m => m.from === move.from && m.to === move.to);
+            const valid = moves.find(m => m.from === move.from && m.to === move.to && (!m.promotion || m.promotion === move.promotion));
 
             if (!valid) {
                 console.error("!!! ILLEGAL MOVE DETECTED !!!");
-                console.error(`Engine tried: ${move.from}-${move.to}`);
-                console.error(`Valid moves for ${move.from}:`, moves.filter(m => m.from === move.from).map(m => m.to).join(', '));
+                console.error(`Engine tried: ${move.from}-${move.to}${move.promotion ? '=' + move.promotion : ''}`);
+                console.error(`Valid moves for ${move.from}:`, moves.filter(m => m.from === move.from).map(m => m.to + (m.promotion ? '=' + m.promotion : '')).join(', '));
                 process.exit(1);
             }
 
-            chess.move({ from: move.from, to: move.to });
+            chess.move({ from: move.from, to: move.to, promotion: move.promotion });
             console.log("Move accepted.");
 
         } catch (e) {

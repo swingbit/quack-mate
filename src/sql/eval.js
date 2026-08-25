@@ -95,8 +95,16 @@ export function getIncrementalEvalSQL(mAlias) {
                     ELSE 0
                 END
             ) ELSE 0 END) * (${mAlias}.active_turn_parent)
-        + (CASE WHEN ${mAlias}.is_promo = 1 THEN (${PIECE_VALUES[PIECES.Q]} - ${PIECE_VALUES[PIECES.P]}) ELSE 0 END) * (${mAlias}.active_turn_parent)
-        + COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = (CASE WHEN ${mAlias}.is_promo = 1 THEN (CASE WHEN ${mAlias}.active_turn_parent = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) ELSE ${mAlias}.piece END) AND square = ${mAlias}.to_sq), 0)
+        + (CASE WHEN ${mAlias}.is_promo = 1 THEN (
+            (CASE ABS(${mAlias}.promo_piece)
+                WHEN ${PIECES.Q} THEN ${PIECE_VALUES[PIECES.Q]}
+                WHEN ${PIECES.R} THEN ${PIECE_VALUES[PIECES.R]}
+                WHEN ${PIECES.B} THEN ${PIECE_VALUES[PIECES.B]}
+                WHEN ${PIECES.N} THEN ${PIECE_VALUES[PIECES.N]}
+                ELSE ${PIECE_VALUES[PIECES.Q]}
+            END) - ${PIECE_VALUES[PIECES.P]}
+        ) ELSE 0 END) * (${mAlias}.active_turn_parent)
+        + COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = (CASE WHEN ${mAlias}.is_promo = 1 THEN (CASE WHEN ${mAlias}.promo_piece <> 0 THEN ${mAlias}.promo_piece ELSE (CASE WHEN ${mAlias}.active_turn_parent = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) END) ELSE ${mAlias}.piece END) AND square = ${mAlias}.to_sq), 0)
         - COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = ${mAlias}.piece AND square = ${mAlias}.from_sq), 0)
         - CASE WHEN ${mAlias}.is_capture = 1 THEN COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = ${mAlias}.captured_piece AND square = ${mAlias}.to_sq), 0) ELSE 0 END
         + CASE WHEN ${mAlias}.is_castle = 1 THEN (

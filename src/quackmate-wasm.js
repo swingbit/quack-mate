@@ -185,14 +185,14 @@ export class DuckDBWasmEngine {
 
 
 
-    async makeMove(fromFEN, fromPos, toPos) {
+    async makeMove(fromFEN, fromPos, toPos, promotion = 'q') {
         if (!this.db) throw new Error("Database not initialized!");
         const c = await this.db.connect();
         try {
             const db_wrapper = createDbWrapper(c, this.queryLogger);
             await db_wrapper.query("BEGIN TRANSACTION");
             try {
-                return await try_apply_move_logic(db_wrapper, fromFEN, fromPos, toPos);
+                return await try_apply_move_logic(db_wrapper, fromFEN, fromPos, toPos, promotion);
             } finally {
                 await db_wrapper.query("ROLLBACK");
             }
@@ -275,8 +275,8 @@ export async function find_best_move(fromFEN, options) {
 
 
 
-export async function try_apply_move(fromFEN, fromPos, toPos) {
-    return defaultEngine.makeMove(fromFEN, fromPos, toPos);
+export async function try_apply_move(fromFEN, fromPos, toPos, promotion = 'q') {
+    return defaultEngine.makeMove(fromFEN, fromPos, toPos, promotion);
 }
 
 export async function check_end_game(fromFEN) {

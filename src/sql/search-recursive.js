@@ -39,6 +39,7 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
             0::TINYINT as piece,
             0::TINYINT as is_castle, 0::TINYINT as is_promo,
             0::TINYINT as is_capture, 0::TINYINT as captured_piece,
+            0::TINYINT as promo_piece,
             -- Piece Bitboards
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, 
             bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
@@ -73,9 +74,9 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
         -- apply them, filter illegal ones (kings in check), and produce nodes at d+1.
         SELECT
             (${getNextValSQL('seq_search_tree_id')})::INTEGER as id,
-            m_expanded.parent_id, m_expanded.depth, m_expanded.from_sq, m_expanded.to_sq, m_expanded.piece, 
-            m_expanded.is_castle, m_expanded.is_promo, m_expanded.is_capture, m_expanded.captured_piece,
-            m_expanded.wK_bb, m_expanded.wQ_bb, m_expanded.wR_bb, m_expanded.wB_bb, m_expanded.wN_bb, m_expanded.wP_bb, 
+            m_expanded.parent_id, m_expanded.depth, m_expanded.from_sq, m_expanded.to_sq, m_expanded.piece,
+            m_expanded.is_castle, m_expanded.is_promo, m_expanded.is_capture, m_expanded.captured_piece, m_expanded.promo_piece,
+            m_expanded.wK_bb, m_expanded.wQ_bb, m_expanded.wR_bb, m_expanded.wB_bb, m_expanded.wN_bb, m_expanded.wP_bb,
             m_expanded.bK_bb, m_expanded.bQ_bb, m_expanded.bR_bb, m_expanded.bB_bb, m_expanded.bN_bb, m_expanded.bP_bb,
             m_expanded.castling_rights, m_expanded.active_turn,
             ${getStaticEvalSQL('m_expanded')} as static_eval,
@@ -96,7 +97,7 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
             FROM (
                 SELECT 
                     s_in.id as parent_id, s_in.depth + 1 as depth,
-                    m_in.from_sq, m_in.to_sq, m_in.piece, m_in.is_castle, m_in.is_promo,
+                    m_in.from_sq, m_in.to_sq, m_in.piece, m_in.is_castle, m_in.is_promo, m_in.promo_piece,
                     (s_in.active_turn * -1) as active_turn,
                     (CASE WHEN m_in.from_sq = 4 OR m_in.to_sq = 4 THEN (s_in.castling_rights & 12) WHEN m_in.from_sq = 7 OR m_in.to_sq = 7 THEN (s_in.castling_rights & 14) WHEN m_in.from_sq = 0 OR m_in.to_sq = 0 THEN (s_in.castling_rights & 13) WHEN m_in.from_sq = 60 OR m_in.to_sq = 60 THEN (s_in.castling_rights & 3) WHEN m_in.from_sq = 63 OR m_in.to_sq = 63 THEN (s_in.castling_rights & 11) WHEN m_in.from_sq = 56 OR m_in.to_sq = 56 THEN (s_in.castling_rights & 7) ELSE s_in.castling_rights END) as castling_rights,
                     ${captureLogicFor('m_in', 's_in')} as captured_piece,
@@ -108,7 +109,7 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
                 FROM search_tree s_in
                 JOIN LATERAL ( ${getMovesSelectSQL('search_tree', true, 's_in')} ) m_in ON true
                 LEFT JOIN piece_masks pm_d ON pm_d.piece = m_in.piece
-                LEFT JOIN piece_masks pm_a ON pm_a.piece = (CASE WHEN m_in.is_promo = 1 THEN (CASE WHEN s_in.active_turn = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) ELSE m_in.piece END)
+                LEFT JOIN piece_masks pm_a ON pm_a.piece = (CASE WHEN m_in.is_promo = 1 THEN (CASE WHEN m_in.promo_piece <> 0 THEN m_in.promo_piece ELSE (CASE WHEN s_in.active_turn = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) END) ELSE m_in.piece END)
                 LEFT JOIN piece_masks pm_c ON pm_c.piece = ${captureLogicFor('m_in', 's_in')}
                 WHERE s_in.depth < ${depth}
                 ${filterClause}
@@ -181,19 +182,19 @@ export function getRecursiveSearchQuery(depth, isWhiteTurn, alpha = -SCORE_INFIN
            matches the root's minimax value.
            ========================================================= */
             best_move AS (
-                SELECT from_sq, to_sq, piece, is_castle, is_promo, total_nodes, minimax_eval
+                SELECT from_sq, to_sq, piece, is_castle, is_promo, promo_piece, total_nodes, minimax_eval
                 FROM (
-                    SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, (SELECT COUNT(*) FROM search_tree) as total_nodes,
+                    SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, (SELECT COUNT(*) FROM search_tree) as total_nodes,
                            ROW_NUMBER() OVER (ORDER BY m.minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}, st.static_eval ${isWhiteTurn ? 'DESC' : 'ASC'}, st.from_sq ASC, st.to_sq ASC) as rn,
                            m.minimax_eval
-                    FROM search_tree st 
-                    JOIN minimax m ON st.id = m.id 
-                    WHERE st.depth = 1 
+                    FROM search_tree st
+                    JOIN minimax m ON st.id = m.id
+                    WHERE st.depth = 1
                 ) t
                 ${returnAllMoves ? '' : 'WHERE rn = 1'}
             )
-        SELECT 
-            from_sq, to_sq, piece, is_castle, is_promo, total_nodes, minimax_eval 
+        SELECT
+            from_sq, to_sq, piece, is_castle, is_promo, promo_piece, total_nodes, minimax_eval
         FROM best_move ${returnAllMoves ? `ORDER BY minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}` : ''};
     `;
 }
