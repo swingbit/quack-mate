@@ -34,21 +34,6 @@ Quackmate is a proof-of-concept chess engine where the core logic — move gener
 
 ---
 
-## Repository Structure
-
-- `src/sql/` — **The Brain**<br/>
-  Contains core SQL query builders (`schema.js`, `moves.js`, `eval.js`, `search.js`) that formulate schemas, precomputes, move generation, and evaluation queries.
-- `src/quackmate.js` — **Engine Orchestration**<br/>
-  Coordinates game loops, search frontiers, and table transactions.
-- `src/quackmate-node.js` / `src/quackmate-wasm.js` — **Environment Adapters**<br/>
-  Wrapper modules for native Node and browser Wasm bindings.
-- `src/quackmate-ui.js` — **Interactive Interface**<br/>
-  Front-end chessboard controller and dynamic engine factory.
-- `quackmate-server.sh` — **Launcher Script**<br/>
-  A parametric command-line tool to initialise static or API servers.
-
----
-
 ## How to Run & Develop
 
 ### Requirements
