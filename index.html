@@ -31,6 +31,7 @@
     if (location.hostname === 'swingbit.github.io' || location.hostname === 'quack-mate.com' || location.hostname === 'www.quack-mate.com') {
       var gc = document.createElement('script');
       gc.setAttribute('data-goatcounter', 'https://swingbit.goatcounter.com/count');
+      gc.crossOrigin = 'anonymous';
       gc.async = true;
       gc.src = '//gc.zgo.at/count.js';
       document.head.appendChild(gc);
