@@ -47,7 +47,12 @@ import {
     getRFPUpdateSQL,
     getRFPDeleteSQL,
     getLMRCheckSQL,
-    getLMRPruneSQL
+    getLMRPruneSQL,
+    getSwapFrontiersSQL,
+    getMateScoringSQL,
+    getInitializeLeavesSQL,
+    getInsertPVSearchFrontierSQL,
+    getInsertRestParentNodesSQL
 } from './sql/search.js';
 
 
@@ -63,12 +68,7 @@ import {
 import {
     getCreateTempTablesSQL,
     getClearSearchTreeSQL,
-    getInsertRootNodeSQL,
-    getSwapFrontiersSQL,
-    getMateScoringSQL,
-    getInitializeLeavesSQL,
-    getInsertPVSearchFrontierSQL,
-    getInsertRestParentNodesSQL
+    getInsertRootNodeSQL
 } from './sql/sessions.js';
 
 import { 
@@ -946,7 +946,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
         await db.query(getMateScoringSQL(targetDepth, isBatching));
 
         // 2. Initialize remaining leaves (horizon nodes without children keep static_eval)
-        await db.query(getInitializeLeavesSQL(targetDepth));
+        await db.query(getInitializeLeavesSQL());
 
         // 3. Quiescence Search (optional, only on the final definitive pass per depth)
         if (options.maxDepthQS > 0 && applyQS) {

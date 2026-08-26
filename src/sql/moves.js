@@ -7,7 +7,7 @@
  *   - Rank raw moves with move-ordering heuristics (captures, promotions,
  *     killer moves, history, etc.)
  * These queries are consumed by the search engines in search-recursive.js
- * and search-persistent.js.
+ * and search-bpvs.js.
  */
 
 import {

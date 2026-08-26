@@ -2,7 +2,7 @@
  * SQL builders for the recursive-CTE (Common Table Expression) search
  * engine.  Implements a pure-SQL minimax search using DuckDB's recursive
  * CTEs, generating the entire search tree in a single query.
- * Simpler than the persistent engine but useful for validation and
+ * Simpler than the persisten BPVS engine but useful for validation and
  * standalone deployments (see standalone_recursive_cte/).
  */
 

@@ -4,7 +4,7 @@
  *   - Material + piece-square-table (PST) evaluation
  *   - MVV-LVA (Most Valuable Victim – Least Valuable Attacker) ordering
  *   - Incremental evaluation updates after a move
- * Used by both the recursive-CTE and persistent (batched) search engines.
+ * Used by both the recursive-CTE and batched PVS search engines.
  */
 
 import {

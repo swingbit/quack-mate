@@ -1,8 +1,8 @@
 /**
- * ROUTER FOR SEARCH ALGORITHMS
- * 
- * Re-exports the recursive (CTE-based) search engine and 
- * the persistent (table-based, unrolled BPSV) search engine.
+ * Router for search algorithm modules.
+ * Re-exports the recursive-CTE engine (search-recursive.js) and the
+ * batched PVS engine (search-bpvs.js) together with its search-loop
+ * helpers that were historically in sessions.js.
  */
 
 export {
@@ -27,5 +27,11 @@ export {
     getQSInitSQL,
     getQSExpansionSQL,
     getQSMinimaxBackpropSQL,
-    getApplyQSEvalToMainTreeSQL
-} from './search-persistent.js';
+    getApplyQSEvalToMainTreeSQL,
+    getNMPConditionSQL,
+    getSwapFrontiersSQL,
+    getMateScoringSQL,
+    getInitializeLeavesSQL,
+    getInsertPVSearchFrontierSQL,
+    getInsertRestParentNodesSQL
+} from './search-bpvs.js';

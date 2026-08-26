@@ -1,11 +1,13 @@
 /**
- * SQL builders for the persistent (table-based, iterative) search engine.
- * Implements the "batched PVS" (Principal Variation Search) algorithm
- * using temporary tables to store the search frontier, minimax back-
- * propagation, transposition-table merging, quiescence search (QS),
- * and pruning heuristics (RFP, FFP, LMR, LMP, null-move pruning).
+ * SQL builders for the batched PVS (Principal Variation Search) engine.
  * This is the primary high-performance search strategy used by the
- * DuckDB engine.
+ * DuckDB engine.  Implements the iterative, table-based search loop
+ * using temporary tables for the frontier, minimax back-propagation,
+ * transposition-table merging, quiescence search (QS), and pruning
+ * heuristics (RFP, FFP, LMR, LMP, null-move pruning).
+ *
+ * Session lifecycle (table creation, root insertion, cleanup) is
+ * managed by sessions.js; all search-algorithm SQL builders live here.
  */
 
 import {
@@ -29,7 +31,6 @@ const BBTYPE = 'UBIGINT';
 import { getIsBitSetSQL, getOrSQL, getXorSQL, getBitIndexSQL, getNextValSQL, getZobristHashSQL } from './utils.js';
 import { getStaticEvalSQL, getPieceValueCaseSQL, getMVVLVAScoreSQL } from './eval.js';
 import { getIsKingInCheckSQL, getGivesCheckSQL, getMovesSelectSQL, captureLogicFor, getAppliedStateDirectSQL, getPieceMasksValuesSQL, getPieceMasksColumnsSQL } from './moves.js';
-import { getNMPConditionSQL } from './sessions.js';
 
 
 
@@ -887,5 +888,137 @@ export function getApplyQSEvalToMainTreeSQL(targetDepth) {
         )
         WHERE s.depth = ${targetDepth}
         AND EXISTS(SELECT 1 FROM qs_search_tree qs WHERE qs.parent_id = s.id);
+    `;
+}
+
+// =============================================================================
+// SEARCH LOOP HELPERS (moved from sessions.js)
+// =============================================================================
+
+/**
+ * Generates the null-move pruning condition.
+ *
+ * @param {number} margin   – NMP margins
+ * @param {number} loopAlpha
+ * @param {number} loopBeta
+ * @returns {string} SQL condition
+ */
+export function getNMPConditionSQL(margin, loopAlpha, loopBeta) {
+    return `
+        is_check = 0 AND (
+            (active_turn = 1 AND static_eval - ${margin} >= ${loopBeta}) OR
+            (active_turn = -1 AND static_eval + ${margin} <= ${loopAlpha})
+        )
+    `;
+}
+
+/**
+ * Swaps the search frontier: replaces frontier_nodes with next_frontier_nodes.
+ * Used to advance the iterative, level-by-level expansion of the search tree.
+ *
+ * @returns {string} SQL statement
+ */
+export function getSwapFrontiersSQL() {
+    return `
+        DELETE FROM frontier_nodes;
+        INSERT INTO frontier_nodes (
+            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
+            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
+        )
+        SELECT
+            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
+            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
+        FROM next_frontier_nodes;
+        DELETE FROM next_frontier_nodes;
+    `;
+}
+
+/**
+ * Scores forced mates / draws for nodes that were expanded but produced no
+ * legal moves (is_check = 1 → checkmate, else stalemate / no legal moves).
+ *
+ * @param {number} targetDepth – current search depth
+ * @param {boolean} isBatching – when true, skips depth=1 nodes (handled separately per batch)
+ * @returns {string} SQL statement
+ */
+export function getMateScoringSQL(targetDepth, isBatching = false) {
+    return `
+        UPDATE search_tree
+        SET minimax_eval = CASE
+            WHEN is_check = 1 THEN (CASE WHEN active_turn = ${TURNS.WHITE} THEN -${SCORE_MATE_THRESHOLD} + depth ELSE ${SCORE_MATE_THRESHOLD} - depth END)
+            ELSE 0
+        END
+        WHERE depth < ${targetDepth}
+        ${isBatching ? 'AND depth != 1' : ''}
+        AND id IN (SELECT id FROM attempted_expansions)
+        AND id NOT IN (SELECT id FROM non_mate_nodes)
+    `;
+}
+
+/**
+ * Initialises unresolved search-tree leaves with their static evaluation.
+ *
+ * @returns {string} SQL statement
+ */
+export function getInitializeLeavesSQL() {
+    return `UPDATE search_tree SET minimax_eval = static_eval WHERE minimax_eval IS NULL`;
+}
+
+/**
+ * Seeds the PV (principal variation) line into the frontier so the next
+ * expansion iteration starts from the best line found so far.
+ *
+ * @param {number} pvId – id of the PV-related root/child node
+ * @returns {string} SQL statement
+ */
+export function getInsertPVSearchFrontierSQL(pvId) {
+    return `
+        INSERT INTO frontier_nodes (
+            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
+            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
+        )
+        SELECT
+            s.id, s.parent_id, s.depth, s.from_sq, s.to_sq, s.piece, s.is_castle, s.is_promo, s.is_capture, s.captured_piece, s.promo_piece,
+            s.wK_bb, s.wQ_bb, s.wR_bb, s.wB_bb, s.wN_bb, s.wP_bb, s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
+            s.castling_rights, s.active_turn, s.ep_sq, s.is_ep, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
+            s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
+        FROM search_tree s
+        LEFT JOIN repetition_history rh ON s.board_hash = rh.board_hash
+        WHERE s.id = ${pvId} AND COALESCE(rh.count, 0) < 2
+    `;
+}
+
+/**
+ * Inserts all non-PV root children (depth=1) into parent_nodes so the
+ * remaining root moves can be searched in batches (captures/quiet chunks).
+ *
+ * @param {number} pvId – id of the PV root child to exclude
+ * @returns {string} SQL statement
+ */
+export function getInsertRestParentNodesSQL(pvId) {
+    return `
+        CREATE TEMPORARY TABLE parent_nodes AS
+        SELECT
+            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
+            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
+        FROM search_tree WHERE 1=0;
+        
+        INSERT INTO parent_nodes
+        SELECT
+            s.id, s.parent_id, s.depth, s.from_sq, s.to_sq, s.piece, s.is_castle, s.is_promo, s.is_capture, s.captured_piece, s.promo_piece,
+            s.wK_bb, s.wQ_bb, s.wR_bb, s.wB_bb, s.wN_bb, s.wP_bb, s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
+            s.castling_rights, s.active_turn, s.ep_sq, s.is_ep, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
+            s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
+        FROM search_tree s
+        LEFT JOIN repetition_history rh ON s.board_hash = rh.board_hash
+        WHERE s.depth = 1 AND s.id != ${pvId} AND COALESCE(rh.count, 0) < 2;
     `;
 }

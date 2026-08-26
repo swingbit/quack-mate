@@ -1,14 +1,17 @@
 /**
- * SQL builders for session management and temporary working tables.
- * Provides:
- *   - getCreateTempTablesSQL() – creates all temporary tables needed
- *     during a search (pruned_parents, frontier_nodes, raw_moves, etc.)
- *   - getNMPConditionSQL()     – null-move pruning condition
- *   - getSessionKeySQL()       – unique session identifier
- * Used by the persistent search engine to manage per-search state.
+ * SQL builders for session lifecycle management within the batched PVS
+ * search engine (search-bpvs.js).  Owns only:
+ *   - getCreateTempTablesSQL() – creates all temporary working tables
+ *     (frontier_nodes, search_tree, raw_moves, QS tables, etc.)
+ *   - getClearSearchTreeSQL()  – clears per-iteration state
+ *   - getInsertRootNodeSQL()   – inserts the root node and seeds the
+ *     initial frontier from the current board state
+ *
+ * All search-algorithm SQL builders (NMP, frontier swaps, mate scoring,
+ * leaf initialisation, PV / rest-node insertion) live in search-bpvs.js.
  */
 
-import { TURNS, SCORE_MATE_THRESHOLD } from '../quackmate-common.js';
+import { TURNS } from '../quackmate-common.js';
 import { getBitIndexSQL } from './utils.js';
 import { getStaticEvalSQL } from './eval.js';
 
@@ -118,93 +121,6 @@ export function getInsertRootNodeSQL(rootIsCheck) {
             my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
         )
         SELECT * FROM search_tree WHERE depth = 0;
-    `;
-}
-
-export function getNMPConditionSQL(margin, loopAlpha, loopBeta) {
-    return `
-        is_check = 0 AND (
-            (active_turn = 1 AND static_eval - ${margin} >= ${loopBeta}) OR
-            (active_turn = -1 AND static_eval + ${margin} <= ${loopAlpha})
-        )
-    `;
-}
-
-export function getSwapFrontiersSQL() {
-    return `
-        DELETE FROM frontier_nodes;
-        INSERT INTO frontier_nodes (
-            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
-            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
-            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
-        )
-        SELECT
-            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
-            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
-            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
-        FROM next_frontier_nodes;
-        DELETE FROM next_frontier_nodes;
-    `;
-}
-
-export function getMateScoringSQL(targetDepth, isBatching = false) {
-    return `
-        UPDATE search_tree 
-        SET minimax_eval = CASE 
-            WHEN is_check = 1 THEN (CASE WHEN active_turn = ${TURNS.WHITE} THEN -${SCORE_MATE_THRESHOLD} + depth ELSE ${SCORE_MATE_THRESHOLD} - depth END)
-            ELSE 0 
-        END
-        WHERE depth < ${targetDepth} 
-        ${isBatching ? 'AND depth != 1' : ''}
-        AND id IN (SELECT id FROM attempted_expansions)
-        AND id NOT IN (SELECT id FROM non_mate_nodes)
-    `;
-}
-
-export function getInitializeLeavesSQL(targetDepth) {
-    return `UPDATE search_tree SET minimax_eval = static_eval WHERE minimax_eval IS NULL`;
-}
-
-export function getInsertPVSearchFrontierSQL(pvId) {
-    return `
-        INSERT INTO frontier_nodes (
-            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
-            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
-            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
-        )
-        SELECT
-            s.id, s.parent_id, s.depth, s.from_sq, s.to_sq, s.piece, s.is_castle, s.is_promo, s.is_capture, s.captured_piece, s.promo_piece,
-            s.wK_bb, s.wQ_bb, s.wR_bb, s.wB_bb, s.wN_bb, s.wP_bb, s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
-            s.castling_rights, s.active_turn, s.ep_sq, s.is_ep, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
-            s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
-        FROM search_tree s
-        LEFT JOIN repetition_history rh ON s.board_hash = rh.board_hash
-        WHERE s.id = ${pvId} AND COALESCE(rh.count, 0) < 2
-    `;
-}
-
-export function getInsertRestParentNodesSQL(pvId) {
-    return `
-        CREATE TEMPORARY TABLE parent_nodes AS
-        SELECT
-            id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
-            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
-            my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
-        FROM search_tree WHERE 1=0;
-        
-        INSERT INTO parent_nodes
-        SELECT
-            s.id, s.parent_id, s.depth, s.from_sq, s.to_sq, s.piece, s.is_castle, s.is_promo, s.is_capture, s.captured_piece, s.promo_piece,
-            s.wK_bb, s.wQ_bb, s.wR_bb, s.wB_bb, s.wN_bb, s.wP_bb, s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
-            s.castling_rights, s.active_turn, s.ep_sq, s.is_ep, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
-            s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
-        FROM search_tree s
-        LEFT JOIN repetition_history rh ON s.board_hash = rh.board_hash
-        WHERE s.depth = 1 AND s.id != ${pvId} AND COALESCE(rh.count, 0) < 2;
     `;
 }
 
