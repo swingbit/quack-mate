@@ -984,6 +984,7 @@ async function handle_end_game(fen) {
 function record_last_move(fen, displayStr, profiling, duration, nodes) {
   last_fen = fen
   fen_stack.push(fen)
+  updateCapturedPieces(fen)
 
   let colorMoved = '';
   if (fen.search(/ w /) != -1) {
@@ -1623,6 +1624,7 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
     const promoSuffix = isPromotion ? `=${promotionChoice.toUpperCase()}` : '';
     const duration = performance.now() - turn_start_time;
     record_last_move(reply, `${pieceChar} ${source}-${target}${promoSuffix}`, null, duration, 0);
+    updateCapturedPieces(reply);
 
     // Record Human Stats
     // reply is new FEN, so turn has flipped. We want stats for the player who JUST moved.
