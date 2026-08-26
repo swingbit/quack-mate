@@ -18,13 +18,16 @@
             0::TINYINT as piece,
             0::TINYINT as is_castle, 0::TINYINT as is_promo,
             0::TINYINT as is_capture, 0::TINYINT as captured_piece,
+            0::TINYINT as promo_piece,
             -- Piece Bitboards
-            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, 
+            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
             bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
             -- Metadata
             castling_rights,
             init_state.active_turn,
-            init_state.static_eval, 
+            init_state.ep_sq,
+            0::TINYINT as is_ep,
+            init_state.static_eval,
             NULL::INTEGER as minimax_eval,
             xor(COALESCE((SELECT bit_xor(zc.val) FROM zobrist_constants zc WHERE (
         (zc.piece = 6 AND (((init_state.wK_bb) & (1::UBIGINT << zc.square::INTEGER)) <> 0)) OR
@@ -39,7 +42,7 @@
         (zc.piece = -3 AND (((init_state.bB_bb) & (1::UBIGINT << zc.square::INTEGER)) <> 0)) OR
         (zc.piece = -2 AND (((init_state.bN_bb) & (1::UBIGINT << zc.square::INTEGER)) <> 0)) OR
         (zc.piece = -1 AND (((init_state.bP_bb) & (1::UBIGINT << zc.square::INTEGER)) <> 0))
-    )), 0::UBIGINT), xor(COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'turn' AND init_state.active_turn = -1), 0::UBIGINT), COALESCE((SELECT bit_xor(zm.val) FROM zobrist_misc zm WHERE zm.type = 'castle' AND ((((init_state.castling_rights) & (1::UBIGINT << zm.idx::INTEGER)) <> 0))), 0::UBIGINT))) as board_hash,
+    )), 0::UBIGINT), xor(COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'turn' AND init_state.active_turn = -1), 0::UBIGINT), xor(COALESCE((SELECT bit_xor(zm.val) FROM zobrist_misc zm WHERE zm.type = 'castle' AND ((((init_state.castling_rights) & (1::UBIGINT << zm.idx::INTEGER)) <> 0))), 0::UBIGINT), COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'ep' AND init_state.ep_sq >= 0 AND zm.idx = (init_state.ep_sq % 8)), 0::UBIGINT)))) as board_hash,
             init_state.wK_sq,
             init_state.bK_sq,
             ((wK_bb) | (wQ_bb) | (wR_bb) | (wB_bb) | (wN_bb) | (wP_bb) | (bK_bb) | (bQ_bb) | (bR_bb) | (bB_bb) | (bN_bb) | (bP_bb)) as all_pieces,
@@ -93,11 +96,12 @@
         -- apply them, filter illegal ones (kings in check), and produce nodes at d+1.
         SELECT
             (nextval('seq_search_tree_id'))::INTEGER as id,
-            m_expanded.parent_id, m_expanded.depth, m_expanded.from_sq, m_expanded.to_sq, m_expanded.piece, 
-            m_expanded.is_castle, m_expanded.is_promo, m_expanded.is_capture, m_expanded.captured_piece,
-            m_expanded.wK_bb, m_expanded.wQ_bb, m_expanded.wR_bb, m_expanded.wB_bb, m_expanded.wN_bb, m_expanded.wP_bb, 
+            m_expanded.parent_id, m_expanded.depth, m_expanded.from_sq, m_expanded.to_sq, m_expanded.piece,
+            m_expanded.is_castle, m_expanded.is_promo, m_expanded.is_capture, m_expanded.captured_piece, m_expanded.promo_piece,
+            m_expanded.wK_bb, m_expanded.wQ_bb, m_expanded.wR_bb, m_expanded.wB_bb, m_expanded.wN_bb, m_expanded.wP_bb,
             m_expanded.bK_bb, m_expanded.bQ_bb, m_expanded.bR_bb, m_expanded.bB_bb, m_expanded.bN_bb, m_expanded.bP_bb,
             m_expanded.castling_rights, m_expanded.active_turn,
+            m_expanded.ep_sq, m_expanded.is_ep,
             (
         COALESCE((SELECT SUM(SIGN(pst.piece) * (
             CASE ABS(pst.piece)
@@ -141,7 +145,7 @@
         (zc.piece = -3 AND (((m_expanded.bB_bb) & (1::UBIGINT << zc.square::INTEGER)) <> 0)) OR
         (zc.piece = -2 AND (((m_expanded.bN_bb) & (1::UBIGINT << zc.square::INTEGER)) <> 0)) OR
         (zc.piece = -1 AND (((m_expanded.bP_bb) & (1::UBIGINT << zc.square::INTEGER)) <> 0))
-    )), 0::UBIGINT), xor(COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'turn' AND m_expanded.active_turn = -1), 0::UBIGINT), COALESCE((SELECT bit_xor(zm.val) FROM zobrist_misc zm WHERE zm.type = 'castle' AND ((((m_expanded.castling_rights) & (1::UBIGINT << zm.idx::INTEGER)) <> 0))), 0::UBIGINT))) as board_hash,
+    )), 0::UBIGINT), xor(COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'turn' AND m_expanded.active_turn = -1), 0::UBIGINT), xor(COALESCE((SELECT bit_xor(zm.val) FROM zobrist_misc zm WHERE zm.type = 'castle' AND ((((m_expanded.castling_rights) & (1::UBIGINT << zm.idx::INTEGER)) <> 0))), 0::UBIGINT), COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'ep' AND m_expanded.ep_sq >= 0 AND zm.idx = (m_expanded.ep_sq % 8)), 0::UBIGINT)))) as board_hash,
             m_expanded.wK_sq, m_expanded.bK_sq, m_expanded.all_pieces,
             m_expanded.my_pieces, m_expanded.opponent_pieces,
             m_expanded.active_king_sq, m_expanded.passive_king_sq,
@@ -157,9 +161,10 @@
             FROM (
                 SELECT 
                     s_in.id as parent_id, s_in.depth + 1 as depth,
-                    m_in.from_sq, m_in.to_sq, m_in.piece, m_in.is_castle, m_in.is_promo,
+                    m_in.from_sq, m_in.to_sq, m_in.piece, m_in.is_castle, m_in.is_promo, m_in.promo_piece, m_in.is_ep,
                     (s_in.active_turn * -1) as active_turn,
                     (CASE WHEN m_in.from_sq = 4 OR m_in.to_sq = 4 THEN (s_in.castling_rights & 12) WHEN m_in.from_sq = 7 OR m_in.to_sq = 7 THEN (s_in.castling_rights & 14) WHEN m_in.from_sq = 0 OR m_in.to_sq = 0 THEN (s_in.castling_rights & 13) WHEN m_in.from_sq = 60 OR m_in.to_sq = 60 THEN (s_in.castling_rights & 3) WHEN m_in.from_sq = 63 OR m_in.to_sq = 63 THEN (s_in.castling_rights & 11) WHEN m_in.from_sq = 56 OR m_in.to_sq = 56 THEN (s_in.castling_rights & 7) ELSE s_in.castling_rights END) as castling_rights,
+                    CAST(CASE WHEN ABS(m_in.piece) = 1 AND ABS(m_in.from_sq - m_in.to_sq) = 16 THEN (m_in.from_sq + m_in.to_sq) / 2 ELSE -1 END AS TINYINT) as ep_sq,
                     (CASE 
         WHEN ((s_in.wP_bb) & (((1::UBIGINT) << m_in.to_sq::INTEGER))) <> 0 THEN 1
         WHEN ((s_in.wN_bb) & (((1::UBIGINT) << m_in.to_sq::INTEGER))) <> 0 THEN 2
@@ -175,10 +180,10 @@
         WHEN ((s_in.bP_bb) & (((1::UBIGINT) << m_in.to_sq::INTEGER))) <> 0 THEN -1
         ELSE NULL END) as captured_piece,
                     m_in.is_capture::TINYINT as is_capture,
-                    xor(s_in.wP_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wP), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wP), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_wP, 0::UBIGINT))))) AS wP_bb,
-        xor(s_in.wN_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wN), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wN), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_wN, 0::UBIGINT))))) AS wN_bb,
-        xor(s_in.wB_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wB), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wB), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_wB, 0::UBIGINT))))) AS wB_bb,
-        xor(s_in.wR_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_wR, 0::UBIGINT)), (CASE WHEN m_in.is_castle = 1 AND m_in.piece = 6 THEN xor(((1::UBIGINT) << (CASE 
+                    xor(s_in.wP_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wP), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wP), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_wP, 0::UBIGINT) END)), (CASE WHEN m_in.is_ep = 1 AND m_in.piece = -1 THEN ((1::UBIGINT) << (m_in.to_sq + 8)::INTEGER) ELSE 0::UBIGINT END))))) AS wP_bb,
+        xor(s_in.wN_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wN), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wN), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_wN, 0::UBIGINT) END))))) AS wN_bb,
+        xor(s_in.wB_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wB), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wB), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_wB, 0::UBIGINT) END))))) AS wB_bb,
+        xor(s_in.wR_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_wR, 0::UBIGINT) END)), (CASE WHEN m_in.is_castle = 1 AND m_in.piece = 6 THEN xor(((1::UBIGINT) << (CASE 
                 WHEN m_in.to_sq = 6 THEN 7::TINYINT
                 WHEN m_in.to_sq = 2 THEN 0::TINYINT
                 WHEN m_in.to_sq = 62 THEN 63::TINYINT
@@ -189,12 +194,12 @@
                 WHEN m_in.to_sq = 62 THEN 61::TINYINT 
                 WHEN m_in.to_sq = 58 THEN 59::TINYINT 
                 ELSE m_in.from_sq END)::INTEGER)) ELSE 0 END))))) AS wR_bb,
-        xor(s_in.wQ_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wQ), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wQ), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_wQ, 0::UBIGINT))))) AS wQ_bb,
-        xor(s_in.wK_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wK), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wK), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_wK, 0::UBIGINT))))) AS wK_bb,
-        xor(s_in.bP_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bP), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bP), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_bP, 0::UBIGINT))))) AS bP_bb,
-        xor(s_in.bN_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bN), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bN), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_bN, 0::UBIGINT))))) AS bN_bb,
-        xor(s_in.bB_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bB), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bB), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_bB, 0::UBIGINT))))) AS bB_bb,
-        xor(s_in.bR_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_bR, 0::UBIGINT)), (CASE WHEN m_in.is_castle = 1 AND m_in.piece = -6 THEN xor(((1::UBIGINT) << (CASE 
+        xor(s_in.wQ_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wQ), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wQ), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_wQ, 0::UBIGINT) END))))) AS wQ_bb,
+        xor(s_in.wK_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_wK), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_wK), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_wK, 0::UBIGINT) END))))) AS wK_bb,
+        xor(s_in.bP_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bP), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bP), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_bP, 0::UBIGINT) END)), (CASE WHEN m_in.is_ep = 1 AND m_in.piece = 1 THEN ((1::UBIGINT) << (m_in.to_sq - 8)::INTEGER) ELSE 0::UBIGINT END))))) AS bP_bb,
+        xor(s_in.bN_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bN), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bN), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_bN, 0::UBIGINT) END))))) AS bN_bb,
+        xor(s_in.bB_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bB), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bB), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_bB, 0::UBIGINT) END))))) AS bB_bb,
+        xor(s_in.bR_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bR), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_bR, 0::UBIGINT) END)), (CASE WHEN m_in.is_castle = 1 AND m_in.piece = -6 THEN xor(((1::UBIGINT) << (CASE 
                 WHEN m_in.to_sq = 6 THEN 7::TINYINT
                 WHEN m_in.to_sq = 2 THEN 0::TINYINT
                 WHEN m_in.to_sq = 62 THEN 63::TINYINT
@@ -205,8 +210,8 @@
                 WHEN m_in.to_sq = 62 THEN 61::TINYINT 
                 WHEN m_in.to_sq = 58 THEN 59::TINYINT 
                 ELSE m_in.from_sq END)::INTEGER)) ELSE 0 END))))) AS bR_bb,
-        xor(s_in.bQ_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bQ), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bQ), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_bQ, 0::UBIGINT))))) AS bQ_bb,
-        xor(s_in.bK_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bK), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bK), (((1::UBIGINT) << m_in.to_sq::INTEGER) & COALESCE(pm_c.mask_bK, 0::UBIGINT))))) AS bK_bb,
+        xor(s_in.bQ_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bQ), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bQ), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_bQ, 0::UBIGINT) END))))) AS bQ_bb,
+        xor(s_in.bK_bb, xor((((1::UBIGINT) << m_in.from_sq::INTEGER) & pm_d.mask_bK), xor((((1::UBIGINT) << m_in.to_sq::INTEGER) & pm_a.mask_bK), (((1::UBIGINT) << m_in.to_sq::INTEGER) & (CASE WHEN m_in.is_ep = 1 THEN 0::UBIGINT ELSE COALESCE(pm_c.mask_bK, 0::UBIGINT) END))))) AS bK_bb,
                     (CASE WHEN m_in.piece = 6 THEN m_in.to_sq ELSE s_in.wK_sq END)::TINYINT as wK_sq,
                     (CASE WHEN m_in.piece = -6 THEN m_in.to_sq ELSE s_in.bK_sq END)::TINYINT as bK_sq,
                     s_in.active_turn as active_turn_parent
@@ -216,12 +221,12 @@
            PART 1: SLIDERS & LEAPERS (N, B, R, Q, K)
            Strategy: Explode Bitboards (LATERAL) -> Hash Join Mobility
            ========================================================= */
-        SELECT 
-            s_in.id as parent_id, 
-            sq.i as from_sq, 
-            mp.target_sq AS to_sq, 
+        SELECT
+            s_in.id as parent_id,
+            sq.i as from_sq,
+            mp.target_sq AS to_sq,
             (pt.piece * s_in.active_turn)::TINYINT as piece,
-            0::TINYINT as is_castle, 
+            0::TINYINT as is_castle,
             0::TINYINT as is_promo,
             
             -- [Capture Logic]
@@ -239,13 +244,15 @@
         WHEN ((s_in.bB_bb) & (((1::UBIGINT) << mp.target_sq::INTEGER))) <> 0 THEN -3
         WHEN ((s_in.bN_bb) & (((1::UBIGINT) << mp.target_sq::INTEGER))) <> 0 THEN -2
         WHEN ((s_in.bP_bb) & (((1::UBIGINT) << mp.target_sq::INTEGER))) <> 0 THEN -1
-        ELSE NULL END), 0))::TINYINT as captured_piece
+        ELSE NULL END), 0))::TINYINT as captured_piece,
+            0::TINYINT as promo_piece,
+            0::TINYINT as is_ep
         
         FROM squares sq
         -- 1. Explode: Find occupied squares and identify pieces using LATERAL
         JOIN LATERAL (
             SELECT (CASE WHEN s_in.active_turn = 1 THEN
-                (CASE 
+                (CASE
                     WHEN (((s_in.wN_bb) & (1::UBIGINT << sq.i::INTEGER)) <> 0) THEN 2
                     WHEN (((s_in.wB_bb) & (1::UBIGINT << sq.i::INTEGER)) <> 0) THEN 3
                     WHEN (((s_in.wR_bb) & (1::UBIGINT << sq.i::INTEGER)) <> 0) THEN 4
@@ -253,7 +260,7 @@
                     WHEN (((s_in.wK_bb) & (1::UBIGINT << sq.i::INTEGER)) <> 0) THEN 6
                 END)
             ELSE
-                (CASE 
+                (CASE
                     WHEN (((s_in.bN_bb) & (1::UBIGINT << sq.i::INTEGER)) <> 0) THEN 2
                     WHEN (((s_in.bB_bb) & (1::UBIGINT << sq.i::INTEGER)) <> 0) THEN 3
                     WHEN (((s_in.bR_bb) & (1::UBIGINT << sq.i::INTEGER)) <> 0) THEN 4
@@ -266,9 +273,9 @@
         -- 2. Join Mobility
         JOIN mobility_precomputed mp ON mp.from_sq = sq.i AND mp.piece = pt.piece
         
-        WHERE 
+        WHERE
         -- Blockers
-        (mp.ray_mask & s_in.all_pieces) = 0 
+        (mp.ray_mask & s_in.all_pieces) = 0
         -- Friendly Fire
         AND NOT (((s_in.my_pieces) & (1::UBIGINT << mp.target_sq::INTEGER)) <> 0)
 
@@ -278,36 +285,59 @@
            PART 2: PAWNS
            Strategy: Global Bitwise Shifts
            ========================================================= */
-        -- SINGLE PUSH (White: << 8, Black: >> 8)
-        SELECT 
-            s_in.id, sq.i - (CASE WHEN s_in.active_turn = 1 THEN 8 ELSE -8 END), sq.i,
-            (CASE WHEN s_in.active_turn = 1 THEN 1 ELSE -1 END)::TINYINT,
-            0, 
-            (CASE WHEN (sq.i >> 3) = (CASE WHEN s_in.active_turn = 1 THEN 7 ELSE 0 END) THEN 1 ELSE 0 END), -- Promo
-            0, 0
+        -- SINGLE PUSH NON-PROMO (White)
+        SELECT
+            s_in.id, sq.i - 8, sq.i,
+            1::TINYINT,
+            0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM squares sq
         WHERE s_in.active_turn = 1
+          AND (sq.i >> 3) != 7
           AND ((((CAST((CAST(s_in.wP_bb AS HUGEINT) << 8) & CAST(18446744073709551615 AS HUGEINT) AS UBIGINT) & ~s_in.all_pieces)) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
         UNION ALL
-        SELECT 
+        -- SINGLE PUSH PROMO (White: 4 pieces Q, R, B, N)
+        SELECT
+            s_in.id, sq.i - 8, sq.i,
+            1::TINYINT,
+            0::TINYINT, 1::TINYINT, 0::TINYINT, 0::TINYINT, v.promo_piece::TINYINT, 0::TINYINT
+        FROM squares sq
+        CROSS JOIN (VALUES (5), (4), (3), (2)) AS v(promo_piece)
+        WHERE s_in.active_turn = 1
+          AND (sq.i >> 3) = 7
+          AND ((((CAST((CAST(s_in.wP_bb AS HUGEINT) << 8) & CAST(18446744073709551615 AS HUGEINT) AS UBIGINT) & ~s_in.all_pieces)) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+        UNION ALL
+        -- SINGLE PUSH NON-PROMO (Black)
+        SELECT
             s_in.id, sq.i + 8, sq.i,
-            -1, 0, 
-            (CASE WHEN (sq.i >> 3) = 0 THEN 1 ELSE 0 END), 0, 0
+            -1::TINYINT,
+            0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM squares sq
         WHERE s_in.active_turn = -1
+          AND (sq.i >> 3) != 0
+          AND (((((s_in.bP_bb >> 8) & ~s_in.all_pieces)) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+        UNION ALL
+        -- SINGLE PUSH PROMO (Black: 4 pieces q, r, b, n)
+        SELECT
+            s_in.id, sq.i + 8, sq.i,
+            -1::TINYINT,
+            0::TINYINT, 1::TINYINT, 0::TINYINT, 0::TINYINT, v.promo_piece::TINYINT, 0::TINYINT
+        FROM squares sq
+        CROSS JOIN (VALUES (-5), (-4), (-3), (-2)) AS v(promo_piece)
+        WHERE s_in.active_turn = -1
+          AND (sq.i >> 3) = 0
           AND (((((s_in.bP_bb >> 8) & ~s_in.all_pieces)) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
 
         UNION ALL
 
         -- DOUBLE PUSH
-        SELECT 
-            s_in.id, sq.i - 16, sq.i, 1, 0, 0, 0, 0
+        SELECT
+            s_in.id, sq.i - 16, sq.i, 1::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM squares sq
         WHERE s_in.active_turn = 1
           AND (((CAST(((CAST((s_in.wP_bb & CAST(65280 AS UBIGINT)) AS HUGEINT) << 16) & CAST(18446744073709551615 AS HUGEINT)) AS UBIGINT) & ~s_in.all_pieces & ~CAST(((CAST(s_in.all_pieces AS HUGEINT) << 8) & CAST(18446744073709551615 AS HUGEINT)) AS UBIGINT)) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
         UNION ALL
-        SELECT 
-            s_in.id, sq.i + 16, sq.i, -1, 0, 0, 0, 0
+        SELECT
+            s_in.id, sq.i + 16, sq.i, -1::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM squares sq
         WHERE s_in.active_turn = -1
           AND ((((((s_in.bP_bb & CAST(71776119061217280 AS UBIGINT))) >> 16) & ~s_in.all_pieces & ~(s_in.all_pieces >> 8)) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
@@ -316,8 +346,8 @@
 
         -- CAPTURES (Left/Right)
         
-        -- W_L (7)
-        SELECT s_in.id, sq.i - 7, sq.i, 1, 0, (CASE WHEN (sq.i >> 3) = 7 THEN 1 ELSE 0 END), 1, 
+        -- W_L non-promo
+        SELECT s_in.id, sq.i - 7, sq.i, 1::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
                CAST(COALESCE((CASE 
         WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
         WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
@@ -331,14 +361,37 @@
         WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
         WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
         WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
-        ELSE NULL END), 0) AS TINYINT)
+        ELSE NULL END), 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM squares sq LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE s_in.active_turn = 1
+          AND (sq.i >> 3) != 7
+          AND (((CAST(((CAST((s_in.wP_bb & ~CAST(72340172838076673 AS UBIGINT)) AS HUGEINT) << 7) & CAST(18446744073709551615 AS HUGEINT)) AS UBIGINT) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+        UNION ALL
+        -- W_L promo
+        SELECT s_in.id, sq.i - 7, sq.i, 1::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
+               CAST(COALESCE((CASE 
+        WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
+        WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
+        WHEN ((s_in.wB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 3
+        WHEN ((s_in.wR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 4
+        WHEN ((s_in.wQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 5
+        WHEN ((s_in.wK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 6
+        WHEN ((s_in.bK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -6
+        WHEN ((s_in.bQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -5
+        WHEN ((s_in.bR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -4
+        WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
+        WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
+        WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
+        ELSE NULL END), 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
+        FROM squares sq CROSS JOIN (VALUES (5), (4), (3), (2)) AS v(promo_piece)
+        LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
+        WHERE s_in.active_turn = 1
+          AND (sq.i >> 3) = 7
           AND (((CAST(((CAST((s_in.wP_bb & ~CAST(72340172838076673 AS UBIGINT)) AS HUGEINT) << 7) & CAST(18446744073709551615 AS HUGEINT)) AS UBIGINT) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
           
         UNION ALL
-        -- W_R (9)
-        SELECT s_in.id, sq.i - 9, sq.i, 1, 0, (CASE WHEN (sq.i >> 3) = 7 THEN 1 ELSE 0 END), 1,
+        -- W_R non-promo
+        SELECT s_in.id, sq.i - 9, sq.i, 1::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
                CAST(COALESCE((CASE 
         WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
         WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
@@ -352,14 +405,14 @@
         WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
         WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
         WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
-        ELSE NULL END), 0) AS TINYINT)
+        ELSE NULL END), 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM squares sq LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE s_in.active_turn = 1
-          AND (((CAST(((CAST((s_in.wP_bb & ~CAST(9259542123273830528 AS UBIGINT)) AS HUGEINT) << 9) & CAST(18446744073709551615 AS HUGEINT)) AS UBIGINT) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
-
+          AND (sq.i >> 3) != 7
+          AND (((CAST(((CAST((s_in.wP_bb & ~CAST(9259542123273814144 AS UBIGINT)) AS HUGEINT) << 9) & CAST(18446744073709551615 AS HUGEINT)) AS UBIGINT) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
         UNION ALL
-        -- B_L (>> 9) (Mirror of W_R)
-        SELECT s_in.id, sq.i + 9, sq.i, -1, 0, (CASE WHEN (sq.i >> 3) = 0 THEN 1 ELSE 0 END), 1,
+        -- W_R promo
+        SELECT s_in.id, sq.i - 9, sq.i, 1::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
                CAST(COALESCE((CASE 
         WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
         WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
@@ -373,14 +426,60 @@
         WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
         WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
         WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
-        ELSE NULL END), 0) AS TINYINT)
+        ELSE NULL END), 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
+        FROM squares sq CROSS JOIN (VALUES (5), (4), (3), (2)) AS v(promo_piece)
+        LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
+        WHERE s_in.active_turn = 1
+          AND (sq.i >> 3) = 7
+          AND (((CAST(((CAST((s_in.wP_bb & ~CAST(9259542123273814144 AS UBIGINT)) AS HUGEINT) << 9) & CAST(18446744073709551615 AS HUGEINT)) AS UBIGINT) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+
+        UNION ALL
+        -- B_L non-promo
+        SELECT s_in.id, sq.i + 9, sq.i, -1::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
+               CAST(COALESCE((CASE 
+        WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
+        WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
+        WHEN ((s_in.wB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 3
+        WHEN ((s_in.wR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 4
+        WHEN ((s_in.wQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 5
+        WHEN ((s_in.wK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 6
+        WHEN ((s_in.bK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -6
+        WHEN ((s_in.bQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -5
+        WHEN ((s_in.bR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -4
+        WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
+        WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
+        WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
+        ELSE NULL END), 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM squares sq LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE s_in.active_turn = -1
+          AND (sq.i >> 3) != 0
+          AND ((((((s_in.bP_bb & ~CAST(72340172838076673 AS UBIGINT))) >> 9) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+        UNION ALL
+        -- B_L promo
+        SELECT s_in.id, sq.i + 9, sq.i, -1::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
+               CAST(COALESCE((CASE 
+        WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
+        WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
+        WHEN ((s_in.wB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 3
+        WHEN ((s_in.wR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 4
+        WHEN ((s_in.wQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 5
+        WHEN ((s_in.wK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 6
+        WHEN ((s_in.bK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -6
+        WHEN ((s_in.bQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -5
+        WHEN ((s_in.bR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -4
+        WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
+        WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
+        WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
+        ELSE NULL END), 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
+        FROM squares sq CROSS JOIN (VALUES (-5), (-4), (-3), (-2)) AS v(promo_piece)
+        LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
+        WHERE s_in.active_turn = -1
+          AND (sq.i >> 3) = 0
           AND ((((((s_in.bP_bb & ~CAST(72340172838076673 AS UBIGINT))) >> 9) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
 
         UNION ALL
-        -- B_R (>> 7) (Mirror of W_L)
-        SELECT s_in.id, sq.i + 7, sq.i, -1, 0, (CASE WHEN (sq.i >> 3) = 0 THEN 1 ELSE 0 END), 1,
+        -- B_R non-promo
+        SELECT s_in.id, sq.i + 7, sq.i, -1::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
                CAST(COALESCE((CASE 
         WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
         WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
@@ -394,10 +493,72 @@
         WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
         WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
         WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
-        ELSE NULL END), 0) AS TINYINT)
+        ELSE NULL END), 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM squares sq LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE s_in.active_turn = -1
-          AND ((((((s_in.bP_bb & ~CAST(9259542123273830528 AS UBIGINT))) >> 7) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+          AND (sq.i >> 3) != 0
+          AND ((((((s_in.bP_bb & ~CAST(9259542123273814144 AS UBIGINT))) >> 7) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+        UNION ALL
+        -- B_R promo
+        SELECT s_in.id, sq.i + 7, sq.i, -1::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
+               CAST(COALESCE((CASE 
+        WHEN ((s_in.wP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 1
+        WHEN ((s_in.wN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 2
+        WHEN ((s_in.wB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 3
+        WHEN ((s_in.wR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 4
+        WHEN ((s_in.wQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 5
+        WHEN ((s_in.wK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN 6
+        WHEN ((s_in.bK_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -6
+        WHEN ((s_in.bQ_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -5
+        WHEN ((s_in.bR_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -4
+        WHEN ((s_in.bB_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -3
+        WHEN ((s_in.bN_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -2
+        WHEN ((s_in.bP_bb) & (((1::UBIGINT) << sq_to.to_sq::INTEGER))) <> 0 THEN -1
+        ELSE NULL END), 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
+        FROM squares sq CROSS JOIN (VALUES (-5), (-4), (-3), (-2)) AS v(promo_piece)
+        LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
+        WHERE s_in.active_turn = -1
+          AND (sq.i >> 3) = 0
+          AND ((((((s_in.bP_bb & ~CAST(9259542123273814144 AS UBIGINT))) >> 7) & s_in.opponent_pieces) & (1::UBIGINT << sq.i::INTEGER)) <> 0)
+
+        UNION ALL
+
+        -- EN PASSANT (White & Black)
+        -- White En Passant: captures towards right (from ep_sq - 9)
+        SELECT s_in.id, (CAST(s_in.ep_sq AS INTEGER) - 9)::TINYINT, s_in.ep_sq::TINYINT, 1::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, -1::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM (SELECT 1) dummy
+        WHERE s_in.active_turn = 1
+          AND s_in.ep_sq >= 40 AND s_in.ep_sq <= 47
+          AND (s_in.ep_sq % 8) > 0
+          AND (((s_in.wP_bb) & (1::UBIGINT << s_in.ep_sq - 9::INTEGER)) <> 0)
+        UNION ALL
+        -- White En Passant: captures towards left (from ep_sq - 7)
+        SELECT s_in.id, (CAST(s_in.ep_sq AS INTEGER) - 7)::TINYINT, s_in.ep_sq::TINYINT, 1::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, -1::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM (SELECT 1) dummy
+        WHERE s_in.active_turn = 1
+          AND s_in.ep_sq >= 40 AND s_in.ep_sq <= 47
+          AND (s_in.ep_sq % 8) < 7
+          AND (((s_in.wP_bb) & (1::UBIGINT << s_in.ep_sq - 7::INTEGER)) <> 0)
+        UNION ALL
+        -- Black En Passant: captures towards right file (from ep_sq + 7)
+        SELECT s_in.id, (CAST(s_in.ep_sq AS INTEGER) + 7)::TINYINT, s_in.ep_sq::TINYINT, -1::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM (SELECT 1) dummy
+        WHERE s_in.active_turn = -1
+          AND s_in.ep_sq >= 16 AND s_in.ep_sq <= 23
+          AND (s_in.ep_sq % 8) > 0
+          AND (((s_in.bP_bb) & (1::UBIGINT << s_in.ep_sq + 7::INTEGER)) <> 0)
+        UNION ALL
+        -- Black En Passant: captures towards left file (from ep_sq + 9)
+        SELECT s_in.id, (CAST(s_in.ep_sq AS INTEGER) + 9)::TINYINT, s_in.ep_sq::TINYINT, -1::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM (SELECT 1) dummy
+        WHERE s_in.active_turn = -1
+          AND s_in.ep_sq >= 16 AND s_in.ep_sq <= 23
+          AND (s_in.ep_sq % 8) < 7
+          AND (((s_in.bP_bb) & (1::UBIGINT << s_in.ep_sq + 9::INTEGER)) <> 0)
 
         UNION ALL
 
@@ -405,9 +566,9 @@
            PART 3: CASTLING (Rights & Path Verification)
            Strategy: Subquery Barrier & Consolidated Attack Detection
            ========================================================= */
-        SELECT q.parent_id, q.from_sq, q.to_sq, 
-               q.piece, 
-               1, 0, 0, 0
+        SELECT q.parent_id, q.from_sq, q.to_sq,
+               q.piece,
+               1::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM (
             SELECT s_in.id as parent_id, cv.from_sq, cv.to_sq, 
                    CAST(CASE WHEN cv.turn = 1 THEN 6 ELSE -6 END AS TINYINT) as piece,
@@ -470,7 +631,7 @@
         )))
          ) m_in ON true
                 LEFT JOIN piece_masks pm_d ON pm_d.piece = m_in.piece
-                LEFT JOIN piece_masks pm_a ON pm_a.piece = (CASE WHEN m_in.is_promo = 1 THEN (CASE WHEN s_in.active_turn = 1 THEN 5 ELSE -5 END) ELSE m_in.piece END)
+                LEFT JOIN piece_masks pm_a ON pm_a.piece = (CASE WHEN m_in.is_promo = 1 THEN (CASE WHEN m_in.promo_piece <> 0 THEN m_in.promo_piece ELSE (CASE WHEN s_in.active_turn = 1 THEN 5 ELSE -5 END) END) ELSE m_in.piece END)
                 LEFT JOIN piece_masks pm_c ON pm_c.piece = (CASE 
         WHEN ((s_in.wP_bb) & (((1::UBIGINT) << m_in.to_sq::INTEGER))) <> 0 THEN 1
         WHEN ((s_in.wN_bb) & (((1::UBIGINT) << m_in.to_sq::INTEGER))) <> 0 THEN 2
@@ -555,18 +716,18 @@
            matches the root's minimax value.
            ========================================================= */
             best_move AS (
-                SELECT from_sq, to_sq, piece, is_castle, is_promo, total_nodes, minimax_eval
+                SELECT from_sq, to_sq, piece, is_castle, is_promo, promo_piece, is_ep, total_nodes, minimax_eval
                 FROM (
-                    SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, (SELECT COUNT(*) FROM search_tree) as total_nodes,
+                    SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.is_ep, (SELECT COUNT(*) FROM search_tree) as total_nodes,
                            ROW_NUMBER() OVER (ORDER BY (CASE WHEN (SELECT active_turn FROM game_state LIMIT 1) = 1 THEN -m.minimax_eval ELSE m.minimax_eval END) ASC, (CASE WHEN (SELECT active_turn FROM game_state LIMIT 1) = 1 THEN -st.static_eval ELSE st.static_eval END) ASC, st.from_sq ASC, st.to_sq ASC) as rn,
                            m.minimax_eval
-                    FROM search_tree st 
-                    JOIN minimax m ON st.id = m.id 
-                    WHERE st.depth = 1 
+                    FROM search_tree st
+                    JOIN minimax m ON st.id = m.id
+                    WHERE st.depth = 1
                 ) t
                 WHERE rn = 1
             )
-        SELECT 
-            from_sq, to_sq, piece, is_castle, is_promo, total_nodes, minimax_eval 
+        SELECT
+            from_sq, to_sq, piece, is_castle, is_promo, promo_piece, is_ep, total_nodes, minimax_eval
         FROM best_move ;
     

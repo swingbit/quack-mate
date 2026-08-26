@@ -35,19 +35,20 @@ DROP TABLE IF EXISTS game_state;
 CREATE TABLE game_state(
             active_turn TINYINT,
             castling_rights HUGEINT,
+            ep_sq TINYINT DEFAULT -1,
             halfmove_clock INTEGER,
             fullmove_number INTEGER
         );
 
-INSERT INTO game_state (active_turn, castling_rights, halfmove_clock, fullmove_number)
-        VALUES (1, 15, 0, 1);
+INSERT INTO game_state (active_turn, castling_rights, ep_sq, halfmove_clock, fullmove_number)
+        VALUES (1, 15, -1, 0, 1);
 
 DROP TABLE IF EXISTS v_board_state;
 
 CREATE TABLE v_board_state (
             wK_bb UBIGINT, wQ_bb UBIGINT, wR_bb UBIGINT, wB_bb UBIGINT, wN_bb UBIGINT, wP_bb UBIGINT,
             bK_bb UBIGINT, bQ_bb UBIGINT, bR_bb UBIGINT, bB_bb UBIGINT, bN_bb UBIGINT, bP_bb UBIGINT,
-            castling_rights HUGEINT, active_turn TINYINT
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT
         );
 
 DROP TABLE IF EXISTS pst_values;
@@ -66,12 +67,20 @@ DROP TABLE IF EXISTS zobrist_misc;
 
 CREATE TABLE zobrist_misc (type VARCHAR, idx TINYINT, val UBIGINT);
 
-INSERT INTO zobrist_misc VALUES 
+INSERT INTO zobrist_misc VALUES
         ('turn', 0, 8155970871302976989),
         ('castle', 0, 6710448349299099254),
         ('castle', 1, 14168550579814544250),
         ('castle', 2, 15732757031751495068),
-        ('castle', 3, 15606479851946208711);
+        ('castle', 3, 15606479851946208711),
+        ('ep', 0, 10077830872693992156),
+        ('ep', 1, 1269571859555424777),
+        ('ep', 2, 4845854984780971133),
+        ('ep', 3, 16384951403028126405),
+        ('ep', 4, 8982957417903326384),
+        ('ep', 5, 5805237809029481913),
+        ('ep', 6, 14072301020955506418),
+        ('ep', 7, 9342797770175175839);
 
 DROP TABLE IF EXISTS squares;
 
@@ -3840,7 +3849,7 @@ INSERT INTO attacks_precomputed (square, knight_mask, king_mask, white_pawn_mask
 -- =========================================================
 
 INSERT INTO v_board_state
-        SELECT 
+        SELECT
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = 6), 0::UBIGINT) as wK_bb,
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = 5), 0::UBIGINT) as wQ_bb,
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = 4), 0::UBIGINT) as wR_bb,
@@ -3854,4 +3863,5 @@ INSERT INTO v_board_state
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = -2), 0::UBIGINT) as bN_bb,
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = -1), 0::UBIGINT) as bP_bb,
             COALESCE((SELECT castling_rights FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 0::HUGEINT) as castling_rights,
-            COALESCE((SELECT active_turn FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 1::TINYINT) as active_turn;;
+            COALESCE((SELECT active_turn FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 1::TINYINT) as active_turn,
+            COALESCE((SELECT ep_sq FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), -1::TINYINT) as ep_sq;;

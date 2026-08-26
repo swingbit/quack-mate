@@ -11,8 +11,16 @@ function parseFen(fen) {
     const piecePlacement = parts[0];
     const activeTurn = parts[1];
     const castlingRights = parts[2];
+    const enPassantTarget = parts[3];
     const halfMoveClock = parseInt(parts[4], 10) || 0;
     const fullMoveNumber = parseInt(parts[5], 10) || 1;
+
+    let epTargetInt = -1;
+    if (enPassantTarget && enPassantTarget !== '-') {
+        const file = enPassantTarget.charCodeAt(0) - 'a'.charCodeAt(0);
+        const rank = parseInt(enPassantTarget.charAt(1), 10) - 1;
+        epTargetInt = rank * 8 + file;
+    }
 
     const PIECES = {
         'K': 6, 'Q': 5, 'R': 4, 'B': 3, 'N': 2, 'P': 1,
@@ -55,6 +63,7 @@ function parseFen(fen) {
         bitboards,
         turnVal,
         castlingRightsInt,
+        epTargetInt,
         halfMoveClock,
         fullMoveNumber
     };
@@ -67,7 +76,7 @@ function squareIndexToAlgebraic(index) {
 }
 
 async function loadPosition(connection, fen) {
-    const { bitboards, turnVal, castlingRightsInt, halfMoveClock, fullMoveNumber } = parseFen(fen);
+    const { bitboards, turnVal, castlingRightsInt, epTargetInt, halfMoveClock, fullMoveNumber } = parseFen(fen);
 
     await connection.runAndReadAll(`DELETE FROM piece_bitboards;`);
     await connection.runAndReadAll(`DELETE FROM game_state;`);
@@ -80,8 +89,8 @@ async function loadPosition(connection, fen) {
 
     // Insert game state
     await connection.runAndReadAll(`
-        INSERT INTO game_state (active_turn, castling_rights, halfmove_clock, fullmove_number)
-        VALUES (${turnVal}, ${castlingRightsInt}, ${halfMoveClock}, ${fullMoveNumber});
+        INSERT INTO game_state (active_turn, castling_rights, ep_sq, halfmove_clock, fullmove_number)
+        VALUES (${turnVal}, ${castlingRightsInt}, ${epTargetInt}, ${halfMoveClock}, ${fullMoveNumber});
     `);
 
     // Refresh v_board_state
@@ -102,7 +111,8 @@ async function loadPosition(connection, fen) {
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = -2), 0::UBIGINT) as bN_bb,
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = -1), 0::UBIGINT) as bP_bb,
             COALESCE((SELECT castling_rights FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 0::HUGEINT) as castling_rights,
-            COALESCE((SELECT active_turn FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 1::TINYINT) as active_turn;
+            COALESCE((SELECT active_turn FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 1::TINYINT) as active_turn,
+            COALESCE((SELECT ep_sq FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), -1::TINYINT) as ep_sq;
     `);
 }
 
