@@ -7,7 +7,7 @@ if (typeof window === 'undefined') {
         const { request } = event;
         
         // Skip interception for the local engine server to avoid console noise when it's down
-        if (request.url.includes(":3001")) {
+        if (request.url.includes(":3001") || request.url.includes("gc.zgo.at")) {
             return;
         }
 
