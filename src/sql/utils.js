@@ -1,3 +1,11 @@
+/**
+ * Low-level SQL snippet builders shared across all SQL engine modules.
+ * Provides utility functions for bitwise operations expressed in DuckDB
+ * SQL: is-bit-set checks, OR / XOR aggregation, bit-index extraction
+ * (log2 floor), Zobrist hash computation, INSERT value generation, and
+ * board-state snapshot/revert helpers.
+ */
+
 const BBTYPE = 'UBIGINT';
 
 import { PIECES, TURNS } from '../quackmate-common.js';

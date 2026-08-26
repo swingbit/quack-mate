@@ -1,4 +1,14 @@
-import { 
+/**
+ * SQL builders for the persistent (table-based, iterative) search engine.
+ * Implements the "batched PVS" (Principal Variation Search) algorithm
+ * using temporary tables to store the search frontier, minimax back-
+ * propagation, transposition-table merging, quiescence search (QS),
+ * and pruning heuristics (RFP, FFP, LMR, LMP, null-move pruning).
+ * This is the primary high-performance search strategy used by the
+ * DuckDB engine.
+ */
+
+import {
     PIECES,
     TURNS,
     PIECE_VALUES,

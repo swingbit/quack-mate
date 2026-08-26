@@ -1,6 +1,4 @@
 /**
- * quackmate-san.js
- *
  * SAN (Standard Algebraic Notation) helpers for the Quack-Mate chess UI.
  * Provides isKingInCheck() for detecting checks and sanFromMove() for
  * converting internal move representations into human-readable SAN strings

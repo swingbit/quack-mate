@@ -1,6 +1,4 @@
 /**
- * quackmate-ui.js
- * 
  * Frontend glue logic for the Quackmate web interface.
  * Handles chessboard.js integration, UI updates, and communication 
  * with either the Wasm engine or the Remote engine.

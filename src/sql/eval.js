@@ -1,4 +1,13 @@
-import { 
+/**
+ * SQL builders for static evaluation and move scoring.
+ * Generates DuckDB SQL expressions that compute:
+ *   - Material + piece-square-table (PST) evaluation
+ *   - MVV-LVA (Most Valuable Victim – Least Valuable Attacker) ordering
+ *   - Incremental evaluation updates after a move
+ * Used by both the recursive-CTE and persistent (batched) search engines.
+ */
+
+import {
     PIECES,
     PIECE_VALUES,
     COMPUTED_PST,

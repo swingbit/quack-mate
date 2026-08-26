@@ -1,3 +1,15 @@
+/**
+ * Core DuckDB engine orchestrator for Quack-Mate.
+ * Imports and wires together all SQL-building modules (schema, moves,
+ * eval, search) and exposes the main engine functions:
+ *   - find_best_move()   – full search with iterative deepening, TT, QS
+ *   - try_apply_move()   – apply a move on the board
+ *   - check_end_game()   – detect checkmate / stalemate / draw
+ *   - populate*()        – one-time precomputation of PST, attacks, Zobrist
+ * This module is called both by the Node.js native engine
+ * (quackmate-node.js) and the Wasm browser engine (quackmate-wasm.js).
+ */
+
 import {
     getInitSchemaSQL,
     getClearBoardSQL,

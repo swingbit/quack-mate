@@ -1,6 +1,4 @@
 /**
- * quackmate-wasm.js
- * 
  * WebAssembly bridge for Quackmate.
  * Loads DuckDB-Wasm and connects it to the engine logic for browser use.
  */

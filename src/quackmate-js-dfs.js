@@ -1,6 +1,4 @@
 /**
- * quackmate-js-dfs.js
- * 
  * A pure JavaScript (Node/Browser) chess engine implementation using bitboards.
  * Implements the same search algorithm as the SQL engine, but using DFS.
  * 

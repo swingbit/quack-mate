@@ -51,13 +51,17 @@ Quackmate is a proof-of-concept chess engine where the core logic — move gener
 
 ## How to Run & Develop
 
-### 1. Installation
+### Requirements
+- **DuckDB 1.5.0 or greater** is required because the recursive minimax evaluation CTE uses the recursive `recurring` syntax introduced in DuckDB 1.5.
+- nodejs
+
+### Installation
 Install project dependencies from the root directory:
 ```bash
 npm install
 ```
 
-### 2. Launching the Server
+### Launching the Server
 Boot the server using the launcher:
 ```bash
 # Starts both the static web server (Port 8000) and native DuckDB API (Port 3001)
@@ -70,13 +74,13 @@ Boot the server using the launcher:
 ./quackmate-server.sh static --http-port 8080
 ```
 
-### 3. Playing in the Browser
+### Playing in the Browser
 Open `http://localhost:8000` (or your custom port) in your browser. Under the **Player** dropdown menus, select your preferred engine:
 * **DuckDB WASM**: Runs inside the browser's WebAssembly sandbox.
 * **DuckDB Native (Server)**: Executes moves on the local native server over REST.
 * **DFS JS Engine**: A pure Javascript depth-first search engine, used as a reference. It uses the same move generation logic and search algorithm as the SQL engine, but with DFS.
 
-### 4. Custom Server API Configuration
+### Custom Server API Configuration
 If you run the developer server on a custom port, update the `REMOTE_ENGINE_URL` in `utils/config.js`:
 ```javascript
 export const CONFIG = {

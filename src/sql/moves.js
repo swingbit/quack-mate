@@ -1,3 +1,15 @@
+/**
+ * SQL builders for move generation and board-state manipulation.
+ * Produces DuckDB SQL queries that:
+ *   - Compute pseudo-legal moves for all pieces (with attack/ray masks)
+ *   - Detect check, checkmate, and stalemate
+ *   - Apply a move and return the resulting board state
+ *   - Rank raw moves with move-ordering heuristics (captures, promotions,
+ *     killer moves, history, etc.)
+ * These queries are consumed by the search engines in search-recursive.js
+ * and search-persistent.js.
+ */
+
 import {
     PIECES,
     TURNS,

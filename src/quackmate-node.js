@@ -1,3 +1,12 @@
+/**
+ * Node.js native entry point for the Quack-Mate chess engine.
+ * Wraps the DuckDB engine logic inside an EngineInstance class that
+ * manages a persistent DuckDB connection, runs queries, and exposes
+ * methods like find_best_move, try_apply_move, and check_end_game.
+ * Also provides a standalone init() function and getVersion() for
+ * the HTTP server (utils/server.js).
+ */
+
 import { DuckDBInstance } from '@duckdb/node-api';
 import {
     populatePstValues,

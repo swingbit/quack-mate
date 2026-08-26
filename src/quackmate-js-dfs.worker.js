@@ -1,6 +1,4 @@
 /**
- * quackmate-js-dfs.worker.js
- * 
  * Web Worker for running the Standard JS Chess Engine off the main thread.
  * Handles 'init' and 'search' messages.
  */

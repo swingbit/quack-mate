@@ -1,3 +1,13 @@
+/**
+ * SQL builders for session management and temporary working tables.
+ * Provides:
+ *   - getCreateTempTablesSQL() – creates all temporary tables needed
+ *     during a search (pruned_parents, frontier_nodes, raw_moves, etc.)
+ *   - getNMPConditionSQL()     – null-move pruning condition
+ *   - getSessionKeySQL()       – unique session identifier
+ * Used by the persistent search engine to manage per-search state.
+ */
+
 import { TURNS, SCORE_MATE_THRESHOLD } from '../quackmate-common.js';
 import { getBitIndexSQL } from './utils.js';
 import { getStaticEvalSQL } from './eval.js';

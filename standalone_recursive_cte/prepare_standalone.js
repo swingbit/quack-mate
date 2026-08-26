@@ -1,3 +1,12 @@
+/**
+ * Prepares the standalone recursive-CTE deployment by connecting to a
+ * temporary DuckDB engine, extracting all precomputed tables (attacks,
+ * mobility, Zobrist, PST, etc.) as SQL INSERT statements, and writing
+ * them alongside the schema and the recursive-CTE query into the
+ * standalone_recursive_cte/ directory.  The result is a self-contained
+ * package that can run the CTE search without the full engine.
+ */
+
 import fs from 'fs';
 import path from 'path';
 import { EngineInstance } from '../src/quackmate-node.js';

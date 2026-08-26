@@ -1,3 +1,11 @@
+/**
+ * Standalone runner for the recursive-CTE chess engine.
+ * Parses a FEN position, initialises an in-memory DuckDB database,
+ * loads the schema and precomputed tables from schema.sql, and runs
+ * the recursive-CTE search query from query.sql.  Useful for testing
+ * the CTE-based search outside the main Quack-Mate application.
+ */
+
 import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'fs';
 import path from 'path';

@@ -1,3 +1,12 @@
+/**
+ * HTTP / REST API server for Quack-Mate.
+ * Built with Express, it serves the static frontend files and exposes
+ * API endpoints for the remote engine mode (/api/...).  Manages
+ * per-player engine instances (white / black) and supports pluggable
+ * backends (currently DuckDB native).
+ * Started via the quackmate-server.sh script.
+ */
+
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';

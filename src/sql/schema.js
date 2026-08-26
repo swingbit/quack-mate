@@ -1,4 +1,17 @@
-import { 
+/**
+ * SQL builders for initialising the DuckDB database schema and
+ * precomputed tables.  Creates:
+ *   - piece_bitboards        – starting position bitboards
+ *   - piece_characteristics  – base values, colour multipliers
+ *   - turn_data              – white/black turn metadata
+ *   - attack and mobility tables
+ *   - Zobrist hash tables
+ *   - PST (piece-square table) values
+ *   - transposition table
+ * Called once during engine initialisation.
+ */
+
+import {
     PIECES,
     TURNS,
     PIECE_VALUES,

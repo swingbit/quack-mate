@@ -1,3 +1,11 @@
+/**
+ * Shared constants, engine defaults, and bitboard masks used by both the
+ * SQL (DuckDB) and the pure-JS DFS chess engines.  Every engine module
+ * imports from this file so that evaluation parameters, piece values,
+ * Zobrist constants, and move-ordering offsets are defined in a single
+ * source of truth.
+ */
+
 export const TURNS = {
     WHITE: 1,
     BLACK: -1

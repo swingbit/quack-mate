@@ -1,3 +1,10 @@
+/**
+ * Stylesheet for the Quack-Mate web interface.
+ * Defines the layout of the config columns, the chessboard container,
+ * engine-status indicators, debug/query panels, and responsive design
+ * rules for the browser-based UI.
+ */
+
 body {
   color: #333;
   font-family: 'Open Sans', arial, sans-serif;
