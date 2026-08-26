@@ -177,7 +177,7 @@ export function algebraicToSquareIndex(alg) {
 // across every search to avoid Transposition Table misses.
 export const { ZOBRIST_CONSTANTS, ZOBRIST_MISC } = (() => {
     const constants = {};
-    const misc = { turn: 0n, castle: [] };
+    const misc = { turn: 0n, castle: [], ep: [] };
     
     // Seeded Xorshift64
     let state = 0xDEADC0DEBEEFn;
@@ -193,6 +193,7 @@ export const { ZOBRIST_CONSTANTS, ZOBRIST_MISC } = (() => {
     }
     misc.turn = next();
     misc.castle = Array.from({ length: 4 }, next);
+    misc.ep = Array.from({ length: 8 }, next);
 
     return { ZOBRIST_CONSTANTS: constants, ZOBRIST_MISC: misc };
 })();

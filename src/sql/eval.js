@@ -106,7 +106,7 @@ export function getIncrementalEvalSQL(mAlias) {
         ) ELSE 0 END) * (${mAlias}.active_turn_parent)
         + COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = (CASE WHEN ${mAlias}.is_promo = 1 THEN (CASE WHEN ${mAlias}.promo_piece <> 0 THEN ${mAlias}.promo_piece ELSE (CASE WHEN ${mAlias}.active_turn_parent = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) END) ELSE ${mAlias}.piece END) AND square = ${mAlias}.to_sq), 0)
         - COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = ${mAlias}.piece AND square = ${mAlias}.from_sq), 0)
-        - CASE WHEN ${mAlias}.is_capture = 1 THEN COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = ${mAlias}.captured_piece AND square = ${mAlias}.to_sq), 0) ELSE 0 END
+        - CASE WHEN ${mAlias}.is_capture = 1 THEN COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = ${mAlias}.captured_piece AND square = (CASE WHEN ${mAlias}.is_ep = 1 THEN (CASE WHEN ${mAlias}.active_turn_parent = ${TURNS.WHITE} THEN ${mAlias}.to_sq - 8 ELSE ${mAlias}.to_sq + 8 END) ELSE ${mAlias}.to_sq END)), 0) ELSE 0 END
         + CASE WHEN ${mAlias}.is_castle = 1 THEN (
             CASE 
                 WHEN ${mAlias}.to_sq = 6  THEN (SELECT (r2.value - r1.value) * SIGN(r1.piece) FROM pst_values r1, pst_values r2 WHERE r1.piece = ${PIECES.R} AND r1.square = 7  AND r2.piece = ${PIECES.R} AND r2.square = 5)

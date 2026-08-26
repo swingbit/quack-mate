@@ -73,17 +73,18 @@ export function getInitSchemaSQL() {
         CREATE TABLE game_state(
             active_turn TINYINT,
             castling_rights HUGEINT,
+            ep_sq TINYINT DEFAULT -1,
             halfmove_clock INTEGER,
             fullmove_number INTEGER
         );
-        INSERT INTO game_state (active_turn, castling_rights, halfmove_clock, fullmove_number)
-        VALUES (${TURNS.WHITE}, 15, 0, 1);
+        INSERT INTO game_state (active_turn, castling_rights, ep_sq, halfmove_clock, fullmove_number)
+        VALUES (${TURNS.WHITE}, 15, -1, 0, 1);
 
         DROP TABLE IF EXISTS v_board_state;
         CREATE TABLE v_board_state (
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT
         );
 
         DROP TABLE IF EXISTS pst_values;
@@ -112,12 +113,20 @@ export function getInitSchemaSQL() {
 
         DROP TABLE IF EXISTS zobrist_misc;
         CREATE TABLE zobrist_misc (type VARCHAR, idx TINYINT, val ${BBTYPE});
-        INSERT INTO zobrist_misc VALUES 
+        INSERT INTO zobrist_misc VALUES
         ('turn', 0, ${ZOBRIST_MISC.turn}),
         ('castle', 0, ${ZOBRIST_MISC.castle[0]}),
         ('castle', 1, ${ZOBRIST_MISC.castle[1]}),
         ('castle', 2, ${ZOBRIST_MISC.castle[2]}),
-        ('castle', 3, ${ZOBRIST_MISC.castle[3]});
+        ('castle', 3, ${ZOBRIST_MISC.castle[3]}),
+        ('ep', 0, ${ZOBRIST_MISC.ep[0]}),
+        ('ep', 1, ${ZOBRIST_MISC.ep[1]}),
+        ('ep', 2, ${ZOBRIST_MISC.ep[2]}),
+        ('ep', 3, ${ZOBRIST_MISC.ep[3]}),
+        ('ep', 4, ${ZOBRIST_MISC.ep[4]}),
+        ('ep', 5, ${ZOBRIST_MISC.ep[5]}),
+        ('ep', 6, ${ZOBRIST_MISC.ep[6]}),
+        ('ep', 7, ${ZOBRIST_MISC.ep[7]});
 
         DROP TABLE IF EXISTS repetition_history;
         CREATE TABLE repetition_history (board_hash ${BBTYPE}, count INTEGER);
@@ -141,7 +150,7 @@ export function getInitSchemaSQL() {
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT, eval INTEGER, board_hash ${BBTYPE}, id INTEGER,
-            wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE}, depth TINYINT
+            wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE}, depth TINYINT, ep_sq TINYINT, is_ep TINYINT
         );
 
         DROP TABLE IF EXISTS next_frontier_nodes;
@@ -150,7 +159,7 @@ export function getInitSchemaSQL() {
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
             castling_rights HUGEINT, active_turn TINYINT, eval INTEGER, board_hash ${BBTYPE}, id INTEGER,
-            wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE}, depth TINYINT
+            wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE}, depth TINYINT, ep_sq TINYINT, is_ep TINYINT
         );
 
         -- Persistent Search Tree (modified for ID)
@@ -160,7 +169,7 @@ export function getInitSchemaSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -195,7 +204,7 @@ export function getClearBoardSQL() { return `DELETE FROM piece_bitboards; DELETE
 export function getPopulateBoardStateTableSQL() {
     return `
         INSERT INTO v_board_state
-        SELECT 
+        SELECT
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = ${PIECES.K}), 0::${BBTYPE}) as wK_bb,
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = ${PIECES.Q}), 0::${BBTYPE}) as wQ_bb,
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = ${PIECES.R}), 0::${BBTYPE}) as wR_bb,
@@ -209,7 +218,8 @@ export function getPopulateBoardStateTableSQL() {
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = ${PIECES.n}), 0::${BBTYPE}) as bN_bb,
             COALESCE((SELECT bitboard FROM piece_bitboards WHERE piece = ${PIECES.p}), 0::${BBTYPE}) as bP_bb,
             COALESCE((SELECT castling_rights FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 0::HUGEINT) as castling_rights,
-            COALESCE((SELECT active_turn FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 1::TINYINT) as active_turn;
+            COALESCE((SELECT active_turn FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), 1::TINYINT) as active_turn,
+            COALESCE((SELECT ep_sq FROM game_state ORDER BY fullmove_number DESC, halfmove_clock DESC LIMIT 1), -1::TINYINT) as ep_sq;
     `;
 }
 
@@ -235,7 +245,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -254,7 +264,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -268,7 +278,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -283,7 +293,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -298,7 +308,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -309,7 +319,7 @@ export function getInitSearchTablesSQL() {
         -- All Moves (for basic search)
         DROP TABLE IF EXISTS all_moves;
         CREATE TABLE all_moves (
-            parent_id INTEGER, from_sq INTEGER, to_sq INTEGER, piece TINYINT, is_castle TINYINT, is_promo TINYINT, promo_piece TINYINT
+            parent_id INTEGER, from_sq INTEGER, to_sq INTEGER, piece TINYINT, is_castle TINYINT, is_promo TINYINT, promo_piece TINYINT, is_capture TINYINT, captured_piece TINYINT, is_ep TINYINT
         );
 
         -- Expanded (Derived States)
@@ -319,7 +329,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -334,7 +344,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -349,7 +359,7 @@ export function getInitSearchTablesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},
@@ -398,7 +408,7 @@ export function getRecreateFrontierNodesSQL() {
             is_castle TINYINT, is_promo TINYINT, is_capture TINYINT, captured_piece TINYINT, promo_piece TINYINT,
             wK_bb ${BBTYPE}, wQ_bb ${BBTYPE}, wR_bb ${BBTYPE}, wB_bb ${BBTYPE}, wN_bb ${BBTYPE}, wP_bb ${BBTYPE},
             bK_bb ${BBTYPE}, bQ_bb ${BBTYPE}, bR_bb ${BBTYPE}, bB_bb ${BBTYPE}, bN_bb ${BBTYPE}, bP_bb ${BBTYPE},
-            castling_rights HUGEINT, active_turn TINYINT,
+            castling_rights HUGEINT, active_turn TINYINT, ep_sq TINYINT, is_ep TINYINT DEFAULT 0,
             static_eval INTEGER, minimax_eval INTEGER, board_hash ${BBTYPE},
             wK_sq TINYINT, bK_sq TINYINT, all_pieces ${BBTYPE},
             my_pieces ${BBTYPE}, opponent_pieces ${BBTYPE},

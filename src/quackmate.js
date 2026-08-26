@@ -236,6 +236,10 @@ export async function populateZobristTables(db) {
     for (let i = 0; i < 4; i++) {
         zmValues.push(`('castle', ${i}, ${ZOBRIST_MISC.castle[i]})`);
     }
+    // En Passant (8 files: a-h)
+    for (let i = 0; i < 8; i++) {
+        zmValues.push(`('ep', ${i}, ${ZOBRIST_MISC.ep[i]})`);
+    }
 
     await db.query(getPopulateZobristSQL(zcValues, zmValues));
 }
@@ -282,10 +286,13 @@ export function parseFen(fen) {
     if (castlingRights.includes('q')) castlingRightsInt |= 8;
 
     let epTargetInt = -1;
+    if (enPassantTarget && enPassantTarget !== '-') {
+        epTargetInt = algebraicToSquareIndex(enPassantTarget);
+    }
 
     const turnVal = activeTurn === 'w' ? TURNS.WHITE : TURNS.BLACK;
-    const stateInsertSql = getInsertValuesSQL('game_state', 'active_turn, castling_rights, halfmove_clock, fullmove_number', 
-        [`(${turnVal}, ${castlingRightsInt}, ${halfMoveClock}, ${fullMoveNumber})`]
+    const stateInsertSql = getInsertValuesSQL('game_state', 'active_turn, castling_rights, ep_sq, halfmove_clock, fullmove_number',
+        [`(${turnVal}, ${castlingRightsInt}, ${epTargetInt}, ${halfMoveClock}, ${fullMoveNumber})`]
     );
 
     return { boardInsertSql, stateInsertSql };
@@ -337,7 +344,7 @@ export async function toFen(db) {
     }
     const piecePlacement = ranks.join('/');
 
-    const { active_turn, halfmove_clock, fullmove_number } = gameState;
+    const { active_turn, halfmove_clock, fullmove_number, ep_sq } = gameState;
     const cr = BigInt(gameState.castling_rights || 0);
     let castling = '';
     if ((cr & 1n) === 1n) castling += 'K';
@@ -346,7 +353,7 @@ export async function toFen(db) {
     if ((cr & 8n) === 8n) castling += 'q';
     if (castling === '') castling = '-';
 
-    let epTargetStr = '-';
+    let epTargetStr = (ep_sq !== null && ep_sq !== undefined && Number(ep_sq) >= 0) ? squareIndexToAlgebraic(Number(ep_sq)) : '-';
 
     const activeTurnChar = active_turn === TURNS.WHITE ? 'w' : 'b';
     return [piecePlacement, activeTurnChar, castling, epTargetStr, halfmove_clock, fullmove_number].join(' ');
@@ -573,6 +580,7 @@ async function execute_recursive_search(db, opts) {
             is_castle: !!bestRow.is_castle,
             is_promo: !!bestRow.is_promo,
             promo_piece: bestRow.promo_piece,
+            is_ep: !!bestRow.is_ep,
             from: squareIndexToAlgebraic(bestRow.from_sq),
             to: squareIndexToAlgebraic(bestRow.to_sq),
             ...(promoChar ? { promotion: promoChar } : {})
@@ -609,15 +617,17 @@ async function find_best_move_recursive(db, fromFEN, opts) {
             to_sq: bestMove.to_sq,
             piece: bestMove.piece,
             isCastle: bestMove.is_castle,
-            isPromo: bestMove.is_promo
+            isPromo: bestMove.is_promo,
+            promoPiece: bestMove.promo_piece,
+            isEp: bestMove.is_ep
         }, isWhiteTurn, gameState));
 
         const finalFEN = await toFen(db);
 
         return {
-            fen: finalFEN, 
+            fen: finalFEN,
             nodes: result.nodes,
-            score: result.score,
+            score: result.score * (isWhiteTurn ? 1 : -1),
             move: {
                 from: squareIndexToAlgebraic(Number(bestMove.from_sq)),
                 to: squareIndexToAlgebraic(Number(bestMove.to_sq)),
@@ -1359,7 +1369,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             if (bestScoreRes.length > 0) {
                  const topScore = Number(bestScoreRes[0].minimax_eval);
                  const candidates = await db.query(`
-                     SELECT st.id, st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.minimax_eval, st.static_eval
+                     SELECT st.id, st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.is_ep, st.minimax_eval, st.static_eval
                      FROM search_tree st
                      WHERE st.depth = 1
                      AND st.minimax_eval = ${topScore}
@@ -1424,7 +1434,8 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             piece: currentBestMoveRaw.piece,
             isCastle: currentBestMoveRaw.is_castle,
             isPromo: currentBestMoveRaw.is_promo,
-            promoPiece: currentBestMoveRaw.promo_piece
+            promoPiece: currentBestMoveRaw.promo_piece,
+            isEp: currentBestMoveRaw.is_ep
         }, isWhiteTurn, finalGameState));
     }
 
@@ -1434,7 +1445,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
     
     if (options.returnAllMoves) {
         const allMoves = await db.query(`
-            SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.minimax_eval
+            SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.is_ep, st.minimax_eval
             FROM search_tree st
             WHERE st.depth = 1
             AND st.minimax_eval IS NOT NULL

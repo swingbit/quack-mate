@@ -248,7 +248,8 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
             -- [Capture Logic]
             (CASE WHEN ${getIsBitSetSQL(`${fromS}.opponent_pieces`, 'mp.target_sq')} THEN 1 ELSE 0 END)::TINYINT as is_capture,
             (COALESCE(${captureLogicFor('mp', fromS, 'target_sq')}, 0))::TINYINT as captured_piece,
-            0::TINYINT as promo_piece
+            0::TINYINT as promo_piece,
+            0::TINYINT as is_ep
         
         FROM ${fromClause}
         -- 1. Explode: Find occupied squares and identify pieces using LATERAL
@@ -291,7 +292,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         SELECT
             ${fromS}.id, sq.i - 8, sq.i,
             ${PIECES.P}::TINYINT,
-            0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
+            0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM ${fromClause}
         WHERE ${fromS}.active_turn = ${TURNS.WHITE}
           AND (sq.i >> 3) != 7
@@ -301,7 +302,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         SELECT
             ${fromS}.id, sq.i - 8, sq.i,
             ${PIECES.P}::TINYINT,
-            0::TINYINT, 1::TINYINT, 0::TINYINT, 0::TINYINT, v.promo_piece::TINYINT
+            0::TINYINT, 1::TINYINT, 0::TINYINT, 0::TINYINT, v.promo_piece::TINYINT, 0::TINYINT
         FROM ${fromClause}
         CROSS JOIN (VALUES (${PIECES.Q}), (${PIECES.R}), (${PIECES.B}), (${PIECES.N})) AS v(promo_piece)
         WHERE ${fromS}.active_turn = ${TURNS.WHITE}
@@ -312,7 +313,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         SELECT
             ${fromS}.id, sq.i + 8, sq.i,
             ${PIECES.p}::TINYINT,
-            0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
+            0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM ${fromClause}
         WHERE ${fromS}.active_turn = ${TURNS.BLACK}
           AND (sq.i >> 3) != 0
@@ -322,7 +323,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         SELECT
             ${fromS}.id, sq.i + 8, sq.i,
             ${PIECES.p}::TINYINT,
-            0::TINYINT, 1::TINYINT, 0::TINYINT, 0::TINYINT, v.promo_piece::TINYINT
+            0::TINYINT, 1::TINYINT, 0::TINYINT, 0::TINYINT, v.promo_piece::TINYINT, 0::TINYINT
         FROM ${fromClause}
         CROSS JOIN (VALUES (${PIECES.q}), (${PIECES.r}), (${PIECES.b}), (${PIECES.n})) AS v(promo_piece)
         WHERE ${fromS}.active_turn = ${TURNS.BLACK}
@@ -333,13 +334,13 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
 
         -- DOUBLE PUSH
         SELECT
-            ${fromS}.id, sq.i - 16, sq.i, ${PIECES.P}::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
+            ${fromS}.id, sq.i - 16, sq.i, ${PIECES.P}::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM ${fromClause}
         WHERE ${fromS}.active_turn = ${TURNS.WHITE}
           AND ${getIsBitSetSQL(`CAST(((CAST((${fromS}.wP_bb & CAST(${MASK_RANK_2} AS ${BBTYPE})) AS HUGEINT) << 16) & CAST(${MASK_FULL} AS HUGEINT)) AS ${BBTYPE}) & ~${fromS}.all_pieces & ~CAST(((CAST(${fromS}.all_pieces AS HUGEINT) << 8) & CAST(${MASK_FULL} AS HUGEINT)) AS ${BBTYPE})`, 'sq.i')}
         UNION ALL
         SELECT
-            ${fromS}.id, sq.i + 16, sq.i, ${PIECES.p}::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
+            ${fromS}.id, sq.i + 16, sq.i, ${PIECES.p}::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM ${fromClause}
         WHERE ${fromS}.active_turn = ${TURNS.BLACK}
           AND ${getIsBitSetSQL(`(((${fromS}.bP_bb & CAST(${MASK_RANK_7} AS ${BBTYPE}))) >> 16) & ~${fromS}.all_pieces & ~(${fromS}.all_pieces >> 8)`, 'sq.i')}
@@ -350,7 +351,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         
         -- W_L non-promo
         SELECT ${fromS}.id, sq.i - 7, sq.i, ${PIECES.P}::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM ${fromClause} LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.WHITE}
           AND (sq.i >> 3) != 7
@@ -358,7 +359,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
         -- W_L promo
         SELECT ${fromS}.id, sq.i - 7, sq.i, ${PIECES.P}::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
         FROM ${fromClause} CROSS JOIN (VALUES (${PIECES.Q}), (${PIECES.R}), (${PIECES.B}), (${PIECES.N})) AS v(promo_piece)
         LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.WHITE}
@@ -368,7 +369,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
         -- W_R non-promo
         SELECT ${fromS}.id, sq.i - 9, sq.i, ${PIECES.P}::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM ${fromClause} LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.WHITE}
           AND (sq.i >> 3) != 7
@@ -376,7 +377,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
         -- W_R promo
         SELECT ${fromS}.id, sq.i - 9, sq.i, ${PIECES.P}::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
         FROM ${fromClause} CROSS JOIN (VALUES (${PIECES.Q}), (${PIECES.R}), (${PIECES.B}), (${PIECES.N})) AS v(promo_piece)
         LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.WHITE}
@@ -386,7 +387,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
         -- B_L non-promo
         SELECT ${fromS}.id, sq.i + 9, sq.i, ${PIECES.p}::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM ${fromClause} LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.BLACK}
           AND (sq.i >> 3) != 0
@@ -394,7 +395,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
         -- B_L promo
         SELECT ${fromS}.id, sq.i + 9, sq.i, ${PIECES.p}::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
         FROM ${fromClause} CROSS JOIN (VALUES (${PIECES.q}), (${PIECES.r}), (${PIECES.b}), (${PIECES.n})) AS v(promo_piece)
         LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.BLACK}
@@ -404,7 +405,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
         -- B_R non-promo
         SELECT ${fromS}.id, sq.i + 7, sq.i, ${PIECES.p}::TINYINT, 0::TINYINT, 0::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), 0::TINYINT, 0::TINYINT
         FROM ${fromClause} LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.BLACK}
           AND (sq.i >> 3) != 0
@@ -412,12 +413,51 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
         UNION ALL
         -- B_R promo
         SELECT ${fromS}.id, sq.i + 7, sq.i, ${PIECES.p}::TINYINT, 0::TINYINT, 1::TINYINT, 1::TINYINT,
-               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT
+               CAST(COALESCE(${captureLogicFor('sq_to', fromS, 'to_sq')}, 0) AS TINYINT), v.promo_piece::TINYINT, 0::TINYINT
         FROM ${fromClause} CROSS JOIN (VALUES (${PIECES.q}), (${PIECES.r}), (${PIECES.b}), (${PIECES.n})) AS v(promo_piece)
         LEFT JOIN LATERAL (SELECT sq.i as to_sq) sq_to ON true
         WHERE ${fromS}.active_turn = ${TURNS.BLACK}
           AND (sq.i >> 3) = 0
           AND ${getIsBitSetSQL(`(((${fromS}.bP_bb & ~CAST(${MASK_FILE_H} AS ${BBTYPE}))) >> 7) & ${fromS}.opponent_pieces`, 'sq.i')}
+
+        UNION ALL
+
+        -- EN PASSANT (White & Black)
+        -- White En Passant: captures towards right (from ep_sq - 9)
+        SELECT ${fromS}.id, (CAST(${fromS}.ep_sq AS INTEGER) - 9)::TINYINT, ${fromS}.ep_sq::TINYINT, ${PIECES.P}::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, ${PIECES.p}::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM ${isLateral ? '(SELECT 1) dummy' : `${stateTable} ${sAlias}`}
+        WHERE ${fromS}.active_turn = ${TURNS.WHITE}
+          AND ${fromS}.ep_sq >= 40 AND ${fromS}.ep_sq <= 47
+          AND (${fromS}.ep_sq % 8) > 0
+          AND ${getIsBitSetSQL(`${fromS}.wP_bb`, `${fromS}.ep_sq - 9`)}
+        UNION ALL
+        -- White En Passant: captures towards left (from ep_sq - 7)
+        SELECT ${fromS}.id, (CAST(${fromS}.ep_sq AS INTEGER) - 7)::TINYINT, ${fromS}.ep_sq::TINYINT, ${PIECES.P}::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, ${PIECES.p}::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM ${isLateral ? '(SELECT 1) dummy' : `${stateTable} ${sAlias}`}
+        WHERE ${fromS}.active_turn = ${TURNS.WHITE}
+          AND ${fromS}.ep_sq >= 40 AND ${fromS}.ep_sq <= 47
+          AND (${fromS}.ep_sq % 8) < 7
+          AND ${getIsBitSetSQL(`${fromS}.wP_bb`, `${fromS}.ep_sq - 7`)}
+        UNION ALL
+        -- Black En Passant: captures towards right file (from ep_sq + 7)
+        SELECT ${fromS}.id, (CAST(${fromS}.ep_sq AS INTEGER) + 7)::TINYINT, ${fromS}.ep_sq::TINYINT, ${PIECES.p}::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, ${PIECES.P}::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM ${isLateral ? '(SELECT 1) dummy' : `${stateTable} ${sAlias}`}
+        WHERE ${fromS}.active_turn = ${TURNS.BLACK}
+          AND ${fromS}.ep_sq >= 16 AND ${fromS}.ep_sq <= 23
+          AND (${fromS}.ep_sq % 8) > 0
+          AND ${getIsBitSetSQL(`${fromS}.bP_bb`, `${fromS}.ep_sq + 7`)}
+        UNION ALL
+        -- Black En Passant: captures towards left file (from ep_sq + 9)
+        SELECT ${fromS}.id, (CAST(${fromS}.ep_sq AS INTEGER) + 9)::TINYINT, ${fromS}.ep_sq::TINYINT, ${PIECES.p}::TINYINT,
+               0::TINYINT, 0::TINYINT, 1::TINYINT, ${PIECES.P}::TINYINT, 0::TINYINT, 1::TINYINT
+        FROM ${isLateral ? '(SELECT 1) dummy' : `${stateTable} ${sAlias}`}
+        WHERE ${fromS}.active_turn = ${TURNS.BLACK}
+          AND ${fromS}.ep_sq >= 16 AND ${fromS}.ep_sq <= 23
+          AND (${fromS}.ep_sq % 8) < 7
+          AND ${getIsBitSetSQL(`${fromS}.bP_bb`, `${fromS}.ep_sq + 9`)}
 
         UNION ALL
 
@@ -427,7 +467,7 @@ export function getMovesSelectSQL(stateTable, isLateral = false, forcedAlias = '
            ========================================================= */
         SELECT q.parent_id, q.from_sq, q.to_sq,
                q.piece,
-               1::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
+               1::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT, 0::TINYINT
         FROM (
             SELECT ${fromS}.id as parent_id, cv.from_sq, cv.to_sq, 
                    CAST(CASE WHEN cv.turn = ${TURNS.WHITE} THEN ${PIECES.K} ELSE ${PIECES.k} END AS TINYINT) as piece,
@@ -507,7 +547,7 @@ export function getAppliedStateDirectSQL(m, s, capturedPieceAlias = null) {
         let terms = [
             `(${deltaFrom} & pm_d.${maskCol})`,
             `(${deltaTo} & pm_a.${maskCol})`,
-            `(${deltaTo} & COALESCE(pm_c.${maskCol}, 0::${BBTYPE}))`
+            `(${deltaTo} & (CASE WHEN ${m}.is_ep = 1 THEN 0::${BBTYPE} ELSE COALESCE(pm_c.${maskCol}, 0::${BBTYPE}) END))`
         ];
 
         // CASTLING (Rook Movement) - Kept imperative as it involves specific non-from/to logic
@@ -530,7 +570,15 @@ export function getAppliedStateDirectSQL(m, s, capturedPieceAlias = null) {
              )} ELSE 0 END)`;
             terms.push(castleDelta);
         }
-        
+
+        // EN PASSANT (Captured Pawn Removal)
+        if (p_val === PIECES.P) {
+            const epDelta = `(CASE WHEN ${m}.is_ep = 1 AND ${m}.piece = ${PIECES.p} THEN ${getSafeLSH(`1::${BBTYPE}`, `(${m}.to_sq + 8)`)} ELSE 0::${BBTYPE} END)`;
+            terms.push(epDelta);
+        } else if (p_val === PIECES.p) {
+            const epDelta = `(CASE WHEN ${m}.is_ep = 1 AND ${m}.piece = ${PIECES.P} THEN ${getSafeLSH(`1::${BBTYPE}`, `(${m}.to_sq - 8)`)} ELSE 0::${BBTYPE} END)`;
+            terms.push(epDelta);
+        }
 
         // Combine
         return `${getXorSQL(`${s}.${bbCol}`, getXorSQL(terms))} AS ${bbCol}`;
@@ -551,6 +599,7 @@ export function getApplyMoveSQL(move, isWhiteTurn, gameState) {
     const isCastle = move.isCastle !== undefined ? move.isCastle : move.is_castle;
     const isPromo = move.isPromo !== undefined ? move.isPromo : move.is_promo;
     const promoPiece = move.promoPiece !== undefined ? move.promoPiece : (move.promo_piece || 0);
+    const isEp = move.isEp !== undefined ? move.isEp : (move.is_ep || 0);
     const opponentTurnVal = isWhiteTurn ? TURNS.BLACK : TURNS.WHITE;
     const pieceVal = typeof piece === 'string' ? PIECES[piece] : piece;
     const promoPieceVal = typeof promoPiece === 'string' ? (PIECES[promoPiece] || 0) : promoPiece;
@@ -566,11 +615,13 @@ export function getApplyMoveSQL(move, isWhiteTurn, gameState) {
                 SELECT 1::INTEGER as id, 0::INTEGER as parent_id,
                 ${from_sq} as from_sq, ${to_sq} as to_sq, ${pieceVal} as piece,
                 ${isCastle ? 1 : 0} as is_castle, ${isPromo ? 1 : 0} as is_promo,
-                ${promoPieceVal}::TINYINT as promo_piece
+                ${promoPieceVal}::TINYINT as promo_piece,
+                ${isEp ? 1 : 0}::TINYINT as is_ep
             )
             SELECT
                 ${opponentTurnVal} as active_turn,
                 (CASE WHEN m.from_sq = 4 OR m.to_sq = 4 THEN (s.castling_rights & 12) WHEN m.from_sq = 7 OR m.to_sq = 7 THEN (s.castling_rights & 14) WHEN m.from_sq = 0 OR m.to_sq = 0 THEN (s.castling_rights & 13) WHEN m.from_sq = 60 OR m.to_sq = 60 THEN (s.castling_rights & 3) WHEN m.from_sq = 63 OR m.to_sq = 63 THEN (s.castling_rights & 11) WHEN m.from_sq = 56 OR m.to_sq = 56 THEN (s.castling_rights & 7) ELSE s.castling_rights END) as castling_rights,
+                CAST(CASE WHEN ABS(m.piece) = ${PIECES.P} AND ABS(m.from_sq - m.to_sq) = 16 THEN (m.from_sq + m.to_sq) / 2 ELSE -1 END AS TINYINT) as ep_sq,
                 ${getAppliedStateDirectSQL('m', 's')}
             FROM search_space s
             CROSS JOIN all_moves_one m
@@ -580,7 +631,7 @@ export function getApplyMoveSQL(move, isWhiteTurn, gameState) {
             ;
 
         -- Apply to piece_bitboards (Single Update)
-        UPDATE piece_bitboards SET bitboard = (CASE piece 
+        UPDATE piece_bitboards SET bitboard = (CASE piece
             WHEN ${PIECES.K} THEN COALESCE((SELECT wK_bb FROM final_state_tmp), 0::${BBTYPE})
             WHEN ${PIECES.Q} THEN COALESCE((SELECT wQ_bb FROM final_state_tmp), 0::${BBTYPE})
             WHEN ${PIECES.R} THEN COALESCE((SELECT wR_bb FROM final_state_tmp), 0::${BBTYPE})
@@ -598,7 +649,8 @@ export function getApplyMoveSQL(move, isWhiteTurn, gameState) {
 
         -- Update game_state
         UPDATE game_state SET active_turn = (SELECT active_turn FROM final_state_tmp),
-                            castling_rights = (SELECT castling_rights FROM final_state_tmp)
+                            castling_rights = (SELECT castling_rights FROM final_state_tmp),
+                            ep_sq = (SELECT ep_sq FROM final_state_tmp)
         WHERE EXISTS (SELECT 1 FROM final_state_tmp);
         
         DROP TABLE final_state_tmp;
@@ -610,11 +662,11 @@ export function getBoardStateCTEs(isWhiteTurn) {
     const turnVal = isWhiteTurn ? TURNS.WHITE : TURNS.BLACK;
     return `
         board_state_bbs AS (
-            SELECT 
+            SELECT
                 0 as id, ${turnVal} as active_turn,
                 wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
                 bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-                castling_rights,
+                castling_rights, ep_sq,
                 ${getBitIndexSQL('wK_bb')} as wK_sq,
                 ${getBitIndexSQL('bK_bb')} as bK_sq
             FROM v_board_state
@@ -633,7 +685,7 @@ export function getBoardStateCTEs(isWhiteTurn) {
 export function getPseudoLegalMovesSQL(isWhiteTurn) {
     return `WITH ${getBoardStateCTEs(isWhiteTurn)},
             all_moves AS (${getMovesSelectSQL('search_space')})
-            SELECT from_sq, to_sq, piece, is_castle, is_promo, is_capture, promo_piece FROM all_moves t; `;
+            SELECT from_sq, to_sq, piece, is_castle, is_promo, is_capture, promo_piece, is_ep FROM all_moves t; `;
 }
 
 
@@ -769,11 +821,11 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
     return `
     -- 1. Create temporary search space
     DROP TABLE IF EXISTS search_space;
-    CREATE TEMPORARY TABLE search_space AS 
+    CREATE TEMPORARY TABLE search_space AS
     SELECT
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn, static_eval, board_hash, wK_sq, bK_sq, all_pieces,
+        castling_rights, active_turn, ep_sq, is_ep, static_eval, board_hash, wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
     FROM ${sourceTable};
 
@@ -785,10 +837,10 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
     -- Batch 3+: Remaining moves chunked by batchSize.
     
     DELETE FROM ${targetTable};
-    INSERT INTO ${targetTable} 
-    SELECT 
-        sq.parent_id, sq.active_turn, sq.depth, 
-        sq.wK_bb, sq.wQ_bb, sq.wR_bb, sq.wB_bb, sq.wN_bb, sq.wP_bb, 
+    INSERT INTO ${targetTable}
+    SELECT
+        sq.parent_id, sq.active_turn, sq.depth,
+        sq.wK_bb, sq.wQ_bb, sq.wR_bb, sq.wB_bb, sq.wN_bb, sq.wP_bb,
         sq.bK_bb, sq.bQ_bb, sq.bR_bb, sq.bB_bb, sq.bN_bb, sq.bP_bb,
         sq.castling_rights,
         sq.static_eval,
@@ -803,29 +855,33 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
         
         -- Custom Batch Logic: Progressive Batching
         CAST(
-            CASE 
+            CASE
                 WHEN sq.is_capture = 1 OR sq.is_promo = 1 OR sq.is_castle = 1 OR sq.is_check = 1 OR sq.gives_check = 1 THEN
                     (CASE WHEN sq.row_rank = 1 THEN 0 ELSE 1 END)
-                WHEN sq.row_rank = 1 THEN 0 
-                WHEN sq.row_rank <= 4 THEN 1 
-                WHEN sq.row_rank <= 12 THEN 2 
-                ELSE 3 + FLOOR((sq.row_rank - 13) / ${batchSize}) 
-            END 
-        AS INTEGER) as batch_id
+                WHEN sq.row_rank = 1 THEN 0
+                WHEN sq.row_rank <= 4 THEN 1
+                WHEN sq.row_rank <= 12 THEN 2
+                ELSE 3 + FLOOR((sq.row_rank - 13) / ${batchSize})
+            END
+        AS INTEGER) as batch_id,
+        sq.ep_sq,
+        sq.is_ep
     FROM (
-        SELECT 
+        SELECT
             *,
             ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY score DESC) as row_rank
         FROM (
-            SELECT 
-                c.id as parent_id, c.active_turn, c.depth, 
-                c.wK_bb, c.wQ_bb, c.wR_bb, c.wB_bb, c.wN_bb, c.wP_bb, 
+            SELECT
+                c.id as parent_id, c.active_turn, c.depth,
+                c.wK_bb, c.wQ_bb, c.wR_bb, c.wB_bb, c.wN_bb, c.wP_bb,
                 c.bK_bb, c.bQ_bb, c.bR_bb, c.bB_bb, c.bN_bb, c.bP_bb,
                 c.castling_rights,
                 c.static_eval,
                 c.all_pieces,
                 c.wK_sq, c.bK_sq,
                 c.is_check,
+                c.ep_sq,
+                m.is_ep,
                 
                 m.from_sq, m.to_sq, m.piece, m.captured_piece, m.is_castle, m.is_promo, m.is_capture, m.promo_piece,
                 ${getGivesCheckSQL('m', 'c')} as gives_check,
@@ -878,7 +934,7 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
     INSERT INTO ${targetFrontier} (
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+        castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
     )
     WITH batch_moves AS (
@@ -891,12 +947,13 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
         SELECT
             mr.parent_id,
             CAST(${depth} AS TINYINT) as depth,
-            mr.from_sq, mr.to_sq, mr.piece, mr.is_castle, mr.is_promo, mr.is_capture, mr.captured_piece, mr.promo_piece,
+            mr.from_sq, mr.to_sq, mr.piece, mr.is_castle, mr.is_promo, mr.is_capture, mr.captured_piece, mr.promo_piece, mr.is_ep,
             ${getAppliedStateDirectSQL('mr', 'mr', 'mr.captured_piece')},
             
             CAST(mr.castling_rights & ${getCastlingMaskSQL('mr')} AS HUGEINT) as castling_rights,
             CAST(mr.active_turn * -1 AS TINYINT) as active_turn,
             CAST(mr.active_turn AS TINYINT) as active_turn_parent,
+            CAST(CASE WHEN ABS(mr.piece) = ${PIECES.P} AND ABS(mr.from_sq - mr.to_sq) = 16 THEN (mr.from_sq + mr.to_sq) / 2 ELSE -1 END AS TINYINT) as ep_sq,
             
             mr.static_eval as static_eval_parent,
             mr.is_check as is_check_parent,
@@ -913,8 +970,8 @@ export function getExpandFromRawMovesSQL(rawMovesTable, targetFrontier, depth, b
         nextval('seq_search_tree_id') as id,
         prep.parent_id, prep.depth, prep.from_sq, prep.to_sq, prep.piece, prep.is_castle, prep.is_promo, prep.is_capture, prep.captured_piece, prep.promo_piece,
         prep.wK_bb, prep.wQ_bb, prep.wR_bb, prep.wB_bb, prep.wN_bb, prep.wP_bb, prep.bK_bb, prep.bQ_bb, prep.bR_bb, prep.bB_bb, prep.bN_bb, prep.bP_bb,
-        prep.castling_rights, prep.active_turn, 
-        prep.static_eval, 
+        prep.castling_rights, prep.active_turn, prep.ep_sq, prep.is_ep,
+        prep.static_eval,
         prep.static_eval as minimax_eval,
         ${getZobristHashSQL('prep')} as board_hash,
         prep.wK_sq, prep.bK_sq,

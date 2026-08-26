@@ -41,12 +41,14 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
             0::TINYINT as is_capture, 0::TINYINT as captured_piece,
             0::TINYINT as promo_piece,
             -- Piece Bitboards
-            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, 
+            wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
             bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
             -- Metadata
             castling_rights,
             init_state.active_turn,
-            init_state.static_eval, 
+            init_state.ep_sq,
+            0::TINYINT as is_ep,
+            init_state.static_eval,
             NULL::INTEGER as minimax_eval,
             ${getZobristHashSQL('init_state')} as board_hash,
             init_state.wK_sq,
@@ -79,6 +81,7 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
             m_expanded.wK_bb, m_expanded.wQ_bb, m_expanded.wR_bb, m_expanded.wB_bb, m_expanded.wN_bb, m_expanded.wP_bb,
             m_expanded.bK_bb, m_expanded.bQ_bb, m_expanded.bR_bb, m_expanded.bB_bb, m_expanded.bN_bb, m_expanded.bP_bb,
             m_expanded.castling_rights, m_expanded.active_turn,
+            m_expanded.ep_sq, m_expanded.is_ep,
             ${getStaticEvalSQL('m_expanded')} as static_eval,
             NULL::INTEGER as minimax_eval,
             ${getZobristHashSQL('m_expanded')} as board_hash,
@@ -97,9 +100,10 @@ export function getExpansionCTE(depth, alpha = -SCORE_INFINITE, beta = SCORE_INF
             FROM (
                 SELECT 
                     s_in.id as parent_id, s_in.depth + 1 as depth,
-                    m_in.from_sq, m_in.to_sq, m_in.piece, m_in.is_castle, m_in.is_promo, m_in.promo_piece,
+                    m_in.from_sq, m_in.to_sq, m_in.piece, m_in.is_castle, m_in.is_promo, m_in.promo_piece, m_in.is_ep,
                     (s_in.active_turn * -1) as active_turn,
                     (CASE WHEN m_in.from_sq = 4 OR m_in.to_sq = 4 THEN (s_in.castling_rights & 12) WHEN m_in.from_sq = 7 OR m_in.to_sq = 7 THEN (s_in.castling_rights & 14) WHEN m_in.from_sq = 0 OR m_in.to_sq = 0 THEN (s_in.castling_rights & 13) WHEN m_in.from_sq = 60 OR m_in.to_sq = 60 THEN (s_in.castling_rights & 3) WHEN m_in.from_sq = 63 OR m_in.to_sq = 63 THEN (s_in.castling_rights & 11) WHEN m_in.from_sq = 56 OR m_in.to_sq = 56 THEN (s_in.castling_rights & 7) ELSE s_in.castling_rights END) as castling_rights,
+                    CAST(CASE WHEN ABS(m_in.piece) = ${PIECES.P} AND ABS(m_in.from_sq - m_in.to_sq) = 16 THEN (m_in.from_sq + m_in.to_sq) / 2 ELSE -1 END AS TINYINT) as ep_sq,
                     ${captureLogicFor('m_in', 's_in')} as captured_piece,
                     m_in.is_capture::TINYINT as is_capture,
                     ${getAppliedStateDirectSQL('m_in', 's_in')},
@@ -182,9 +186,9 @@ export function getRecursiveSearchQuery(depth, isWhiteTurn, alpha = -SCORE_INFIN
            matches the root's minimax value.
            ========================================================= */
             best_move AS (
-                SELECT from_sq, to_sq, piece, is_castle, is_promo, promo_piece, total_nodes, minimax_eval
+                SELECT from_sq, to_sq, piece, is_castle, is_promo, promo_piece, is_ep, total_nodes, minimax_eval
                 FROM (
-                    SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, (SELECT COUNT(*) FROM search_tree) as total_nodes,
+                    SELECT st.from_sq, st.to_sq, st.piece, st.is_castle, st.is_promo, st.promo_piece, st.is_ep, (SELECT COUNT(*) FROM search_tree) as total_nodes,
                            ROW_NUMBER() OVER (ORDER BY m.minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}, st.static_eval ${isWhiteTurn ? 'DESC' : 'ASC'}, st.from_sq ASC, st.to_sq ASC) as rn,
                            m.minimax_eval
                     FROM search_tree st
@@ -194,7 +198,7 @@ export function getRecursiveSearchQuery(depth, isWhiteTurn, alpha = -SCORE_INFIN
                 ${returnAllMoves ? '' : 'WHERE rn = 1'}
             )
         SELECT
-            from_sq, to_sq, piece, is_castle, is_promo, promo_piece, total_nodes, minimax_eval
+            from_sq, to_sq, piece, is_castle, is_promo, promo_piece, is_ep, total_nodes, minimax_eval
         FROM best_move ${returnAllMoves ? `ORDER BY minimax_eval ${isWhiteTurn ? 'DESC' : 'ASC'}` : ''};
     `;
 }

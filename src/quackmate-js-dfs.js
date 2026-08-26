@@ -77,6 +77,7 @@ export class GameState {
         };
         this.turn = TURNS.WHITE;
         this.castling = 0; // K=1, Q=2, k=4, q=8
+        this.epSquare = -1;
         this.halfMoves = 0;
         this.fullMoves = 1;
         
@@ -113,6 +114,15 @@ export class GameState {
         if (castling.includes('Q')) this.castling |= 2;
         if (castling.includes('k')) this.castling |= 4;
         if (castling.includes('q')) this.castling |= 8;
+
+        // En Passant
+        if (ep && ep !== '-') {
+            const file = ep.charCodeAt(0) - 'a'.charCodeAt(0);
+            const rank = parseInt(ep.charAt(1), 10) - 1;
+            this.epSquare = rank * 8 + file;
+        } else {
+            this.epSquare = -1;
+        }
 
         // Clocks
         this.halfMoves = parseInt(half) || 0;
@@ -234,6 +244,27 @@ export class GameState {
             }
         }
 
+        // En Passant Captures
+        if (genCaptures && this.epSquare >= 0) {
+            if (us === TURNS.WHITE && this.epSquare >= 40 && this.epSquare <= 47) {
+                const epFile = this.epSquare % 8;
+                if (epFile > 0 && getBit(this.bitboards[PIECES.P], this.epSquare - 9)) {
+                    addMove(this.epSquare - 9, this.epSquare, P, 'ep_capture', null, PIECES.p);
+                }
+                if (epFile < 7 && getBit(this.bitboards[PIECES.P], this.epSquare - 7)) {
+                    addMove(this.epSquare - 7, this.epSquare, P, 'ep_capture', null, PIECES.p);
+                }
+            } else if (us === TURNS.BLACK && this.epSquare >= 16 && this.epSquare <= 23) {
+                const epFile = this.epSquare % 8;
+                if (epFile > 0 && getBit(this.bitboards[PIECES.p], this.epSquare + 7)) {
+                    addMove(this.epSquare + 7, this.epSquare, P, 'ep_capture', null, PIECES.P);
+                }
+                if (epFile < 7 && getBit(this.bitboards[PIECES.p], this.epSquare + 9)) {
+                    addMove(this.epSquare + 9, this.epSquare, P, 'ep_capture', null, PIECES.P);
+                }
+            }
+        }
+
         // Knights
         let knights = this.bitboards[N];
         while (knights !== ZERO) {
@@ -344,9 +375,10 @@ export class GameState {
 
     clone() {
         const c = new GameState();
-        c.bitboards = { ...this.bitboards }; 
+        c.bitboards = { ...this.bitboards };
         c.turn = this.turn;
         c.castling = this.castling;
+        c.epSquare = this.epSquare;
         c.halfMoves = this.halfMoves;
         c.fullMoves = this.fullMoves;
         return c;
@@ -378,16 +410,22 @@ export class GameState {
         }
         
         if (captureSq !== -1) {
-            const enemies = them === TURNS.WHITE 
+            const enemies = them === TURNS.WHITE
             ? [PIECES.P, PIECES.N, PIECES.B, PIECES.R, PIECES.Q, PIECES.K]
             : [PIECES.p, PIECES.n, PIECES.b, PIECES.r, PIECES.q, PIECES.k];
             
             for (const ep of enemies) {
                 if (getBit(this.bitboards[ep], captureSq)) {
                     this.bitboards[ep] = clearBit(this.bitboards[ep], captureSq);
-                    break; 
+                    break;
                 }
             }
+        }
+
+        if (move.type === 'ep_capture') {
+            const capSq = us === TURNS.WHITE ? move.to - 8 : move.to + 8;
+            const enemyP = them === TURNS.WHITE ? PIECES.P : PIECES.p;
+            this.bitboards[enemyP] = clearBit(this.bitboards[enemyP], capSq);
         }
         
         if (move.type === 'castling') {
@@ -403,6 +441,12 @@ export class GameState {
         }
         
         this.turn = them;
+
+        if ((move.piece === PIECES.P || move.piece === PIECES.p) && Math.abs(move.from - move.to) === 16) {
+            this.epSquare = (move.from + move.to) / 2;
+        } else {
+            this.epSquare = -1;
+        }
         
         // Update Castling Rights
         // Moving King or Rook
@@ -467,8 +511,9 @@ export class GameState {
         if (this.castling & 8) castling += 'q';
         fen += ` ${castling || '-'}`;
         
-        // No EP
-        fen += ' -';
+        // EP
+        let epTargetStr = (this.epSquare >= 0) ? squareToAlgebraic(this.epSquare) : '-';
+        fen += ` ${epTargetStr}`;
         
         // Clocks
         fen += ` ${this.halfMoves} ${this.fullMoves}`;
@@ -492,6 +537,7 @@ export class GameState {
         if (this.castling & 2) h ^= ZOBRIST_MISC.castle[1];
         if (this.castling & 4) h ^= ZOBRIST_MISC.castle[2];
         if (this.castling & 8) h ^= ZOBRIST_MISC.castle[3];
+        if (this.epSquare >= 0) h ^= ZOBRIST_MISC.ep[this.epSquare % 8];
         return h;
     }
 

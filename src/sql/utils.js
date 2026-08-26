@@ -97,8 +97,8 @@ export function getRevertStateSQL(originalBitboards, originalGameState) {
     
     let gsInsert = '';
     if (originalGameState) {
-        const { active_turn, castling_rights, halfmove_clock, fullmove_number } = originalGameState;
-        gsInsert = `INSERT INTO game_state (active_turn, castling_rights, halfmove_clock, fullmove_number) VALUES (${active_turn}, ${castling_rights}, ${halfmove_clock}, ${fullmove_number});`;
+        const { active_turn, castling_rights, ep_sq, halfmove_clock, fullmove_number } = originalGameState;
+        gsInsert = `INSERT INTO game_state (active_turn, castling_rights, ep_sq, halfmove_clock, fullmove_number) VALUES (${active_turn}, ${castling_rights}, ${ep_sq !== undefined ? ep_sq : -1}, ${halfmove_clock}, ${fullmove_number});`;
     }
 
     return [
@@ -129,5 +129,6 @@ export function getZobristHashSQL(alias) {
 
     const turnXor = `COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'turn' AND ${alias}.active_turn = ${TURNS.BLACK}), 0::${BBTYPE})`;
     const castleXor = `COALESCE((SELECT bit_xor(zm.val) FROM zobrist_misc zm WHERE zm.type = 'castle' AND (${getIsBitSetSQL(`${alias}.castling_rights`, 'zm.idx')})), 0::${BBTYPE})`;
-    return getXorSQL(pieceXor, turnXor, castleXor);
+    const epXor = `COALESCE((SELECT zm.val FROM zobrist_misc zm WHERE zm.type = 'ep' AND ${alias}.ep_sq >= 0 AND zm.idx = (${alias}.ep_sq % 8)), 0::${BBTYPE})`;
+    return getXorSQL(pieceXor, turnXor, castleXor, epXor);
 }

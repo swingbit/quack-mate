@@ -18,7 +18,7 @@ Quackmate is a proof-of-concept chess engine where the core logic — move gener
 ## Features
 
 - **Database-Centric State**: The chessboard state is stored and modified entirely inside DuckDB tables.
-- **SQL Move Generation**: Generates all pseudo-legal and legal moves (except en-passant) using relational joins and bitwise operations on `UBIGINT` bitboards.
+- **SQL Move Generation**: Generates all pseudo-legal and legal moves using relational joins and bitwise operations on `UBIGINT` bitboards.
 - **Dual Search Implementations**:
   - **Recursive CTE Search**: An elegant search strategy that expands and evaluates the minimax game tree using a single recursive SQL query.
     - **Exhaustive search**: no pruning performed.

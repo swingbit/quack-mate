@@ -42,7 +42,9 @@ export function getCreateTempTablesSQL() {
             
             score INTEGER,
             is_processed INTEGER,
-            batch_id INTEGER
+            batch_id INTEGER,
+            ep_sq TINYINT,
+            is_ep TINYINT
         );
         -- Quiescence Search working tables (same schema as search_tree)
         CREATE TEMPORARY TABLE IF NOT EXISTS qs_frontier AS SELECT * FROM search_tree WHERE 1=0;
@@ -81,14 +83,14 @@ export function getInsertRootNodeSQL(rootIsCheck) {
         INSERT INTO search_tree (
             id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
             my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
         )
         SELECT
             0, NULL, 0, -1, -1, 0, 0, 0, 0, 0, 0,
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
             bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, (${getStaticEvalSQL('v_board_state')})::INTEGER as static_eval, NULL, 0,
+            castling_rights, active_turn, ep_sq, 0::TINYINT, (${getStaticEvalSQL('v_board_state')})::INTEGER as static_eval, NULL, 0,
             ${getBitIndexSQL('wK_bb')} as wK_sq,
             ${getBitIndexSQL('bK_bb')} as bK_sq,
             (wK_bb | wQ_bb | wR_bb | wB_bb | wN_bb | wP_bb | bK_bb | bQ_bb | bR_bb | bB_bb | bN_bb | bP_bb) as all_pieces,
@@ -102,7 +104,7 @@ export function getInsertRootNodeSQL(rootIsCheck) {
         INSERT INTO frontier_nodes (
             id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
             my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
         )
         SELECT * FROM search_tree WHERE depth = 0;
@@ -124,13 +126,13 @@ export function getSwapFrontiersSQL() {
         INSERT INTO frontier_nodes (
             id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
             my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
         )
         SELECT
             id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
             my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
         FROM next_frontier_nodes;
         DELETE FROM next_frontier_nodes;
@@ -160,13 +162,13 @@ export function getInsertPVSearchFrontierSQL(pvId) {
         INSERT INTO frontier_nodes (
             id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
             my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
         )
         SELECT
             s.id, s.parent_id, s.depth, s.from_sq, s.to_sq, s.piece, s.is_castle, s.is_promo, s.is_capture, s.captured_piece, s.promo_piece,
             s.wK_bb, s.wQ_bb, s.wR_bb, s.wB_bb, s.wN_bb, s.wP_bb, s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
-            s.castling_rights, s.active_turn, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
+            s.castling_rights, s.active_turn, s.ep_sq, s.is_ep, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
             s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
         FROM search_tree s
         LEFT JOIN repetition_history rh ON s.board_hash = rh.board_hash
@@ -180,15 +182,15 @@ export function getInsertRestParentNodesSQL(pvId) {
         SELECT
             id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
             wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-            castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+            castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
             my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
         FROM search_tree WHERE 1=0;
         
         INSERT INTO parent_nodes
         SELECT
             s.id, s.parent_id, s.depth, s.from_sq, s.to_sq, s.piece, s.is_castle, s.is_promo, s.is_capture, s.captured_piece, s.promo_piece,
-            s.wK_bb, s.wQ_bb, s.wR_bb, wB_bb, wN_bb, wP_bb, s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
-            s.castling_rights, s.active_turn, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
+            s.wK_bb, s.wQ_bb, s.wR_bb, s.wB_bb, s.wN_bb, s.wP_bb, s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
+            s.castling_rights, s.active_turn, s.ep_sq, s.is_ep, s.static_eval, s.minimax_eval, s.board_hash, s.wK_sq, s.bK_sq, s.all_pieces,
             s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
         FROM search_tree s
         LEFT JOIN repetition_history rh ON s.board_hash = rh.board_hash

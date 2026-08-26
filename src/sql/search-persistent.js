@@ -267,7 +267,7 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
     SELECT
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn, static_eval, board_hash, wK_sq, bK_sq, all_pieces,
+        castling_rights, active_turn, ep_sq, is_ep, static_eval, board_hash, wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
     FROM ${sourceTable};
 
@@ -281,15 +281,16 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
     DROP TABLE IF EXISTS moves_raw;
     CREATE TEMPORARY TABLE moves_raw AS 
     SELECT * EXCLUDE (rnk, depth_val, is_check_val, gives_check_val) FROM (
-        SELECT 
+        SELECT
             c.id as parent_id, c.active_turn, c.depth as depth_val, c.is_check as is_check_val,
-            c.wK_bb, c.wQ_bb, c.wR_bb, c.wB_bb, c.wN_bb, c.wP_bb, 
+            c.wK_bb, c.wQ_bb, c.wR_bb, c.wB_bb, c.wN_bb, c.wP_bb,
             c.bK_bb, c.bQ_bb, c.bR_bb, c.bB_bb, c.bN_bb, c.bP_bb,
             c.castling_rights, c.wK_sq, c.bK_sq, c.static_eval,
+            c.ep_sq, m.is_ep,
             
             m.from_sq, m.to_sq, m.piece, m.captured_piece, m.is_castle, m.is_promo, m.is_capture, m.promo_piece,
             ${getGivesCheckSQL('m', 'c')} as gives_check_val,
-            ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY 
+            ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY
                 ${orderScore}
             DESC) as rnk
         FROM search_space c
@@ -307,12 +308,12 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
         SELECT * FROM (VALUES ${pmValues}) AS t(piece, ${pmColumns})
     )
     SELECT *, ${getOrSQL(['wK_bb', 'wQ_bb', 'wR_bb', 'wB_bb', 'wN_bb', 'wP_bb', 'bK_bb', 'bQ_bb', 'bR_bb', 'bB_bb', 'bN_bb', 'bP_bb'])} as all_pieces FROM (
-        SELECT 
+        SELECT
             mr.parent_id,
             CAST(${depth} AS TINYINT) as depth,
             CAST(mr.active_turn * -1 AS TINYINT) as active_turn,
             CAST(mr.active_turn AS TINYINT) as active_turn_parent,
-            mr.from_sq, mr.to_sq, mr.piece, mr.captured_piece, mr.is_castle, mr.is_promo, mr.is_capture, mr.promo_piece,
+            mr.from_sq, mr.to_sq, mr.piece, mr.captured_piece, mr.is_castle, mr.is_promo, mr.is_capture, mr.promo_piece, mr.is_ep,
             mr.static_eval as static_eval_parent,
             
             -- New Castling Rights
@@ -330,7 +331,8 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
             
             -- Update King Squares
             CAST(CASE WHEN mr.piece = ${PIECES.K} THEN mr.to_sq ELSE mr.wK_sq END AS TINYINT) as wK_sq,
-            CAST(CASE WHEN mr.piece = ${PIECES.k} THEN mr.to_sq ELSE mr.bK_sq END AS TINYINT) as bK_sq
+            CAST(CASE WHEN mr.piece = ${PIECES.k} THEN mr.to_sq ELSE mr.bK_sq END AS TINYINT) as bK_sq,
+            CAST(CASE WHEN ABS(mr.piece) = ${PIECES.P} AND ABS(mr.from_sq - mr.to_sq) = 16 THEN (mr.from_sq + mr.to_sq) / 2 ELSE -1 END AS TINYINT) as ep_sq
             
         FROM moves_raw mr
         LEFT JOIN piece_masks pm_d ON pm_d.piece = mr.piece
@@ -402,12 +404,12 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
         ) scored
         LEFT JOIN pst_values pst_d ON pst_d.piece = scored.piece AND pst_d.square = scored.from_sq
         LEFT JOIN pst_values pst_a ON pst_a.piece = scored.piece_at_to AND pst_a.square = scored.to_sq
-        LEFT JOIN pst_values pst_c ON pst_c.piece = scored.captured_piece AND pst_c.square = scored.to_sq
+        LEFT JOIN pst_values pst_c ON pst_c.piece = scored.captured_piece AND pst_c.square = (CASE WHEN scored.is_ep = 1 THEN (CASE WHEN scored.active_turn_parent = ${TURNS.WHITE} THEN scored.to_sq - 8 ELSE scored.to_sq + 8 END) ELSE scored.to_sq END)
     )
     SELECT
         nextval('seq_search_tree_id') as id,
         parent_id, depth, active_turn, active_turn_parent,
-        from_sq, to_sq, piece, captured_piece, is_castle, is_promo, is_capture, promo_piece,
+        from_sq, to_sq, piece, captured_piece, is_castle, is_promo, is_capture, promo_piece, is_ep, ep_sq,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
         castling_rights, wK_sq, bK_sq, all_pieces,
@@ -441,7 +443,7 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn,
+        castling_rights, active_turn, ep_sq, is_ep,
         static_eval, static_eval as minimax_eval, board_hash,
         wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq,
@@ -452,13 +454,13 @@ export function getPersistentExpansionSQL(sourceTable, targetTable, depth, maxDe
     INSERT INTO ${targetTable} (
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+        castling_rights, active_turn, ep_sq, is_ep, static_eval, minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
     )
     SELECT
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb, bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn, static_eval, static_eval as minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
+        castling_rights, active_turn, ep_sq, is_ep, static_eval, static_eval as minimax_eval, board_hash, wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
     FROM final_expanded
     WHERE is_repetition = 0
@@ -584,7 +586,7 @@ export function getQSInitSQL(qsTable, targetDepth) {
         s.id, s.parent_id, s.depth, s.from_sq, s.to_sq, s.piece, s.is_castle, s.is_promo, s.is_capture, s.captured_piece, s.promo_piece,
         s.wK_bb, s.wQ_bb, s.wR_bb, s.wB_bb, s.wN_bb, s.wP_bb,
         s.bK_bb, s.bQ_bb, s.bR_bb, s.bB_bb, s.bN_bb, s.bP_bb,
-        s.castling_rights, s.active_turn,
+        s.castling_rights, s.active_turn, s.ep_sq, s.is_ep,
         s.static_eval, s.minimax_eval, s.board_hash,
         s.wK_sq, s.bK_sq, s.all_pieces,
         s.my_pieces, s.opponent_pieces, s.active_king_sq, s.passive_king_sq, s.is_check
@@ -636,7 +638,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn, static_eval, board_hash, wK_sq, bK_sq, all_pieces,
+        castling_rights, active_turn, ep_sq, is_ep, static_eval, board_hash, wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
     FROM ${qsFrontier};
 
@@ -648,8 +650,8 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
         c.wK_bb, c.wQ_bb, c.wR_bb, c.wB_bb, c.wN_bb, c.wP_bb,
         c.bK_bb, c.bQ_bb, c.bR_bb, c.bB_bb, c.bN_bb, c.bP_bb,
         c.castling_rights, c.wK_sq, c.bK_sq, c.static_eval as static_eval_parent,
-        c.is_check as is_check_parent,
-        m.from_sq, m.to_sq, m.piece, m.captured_piece, m.is_castle, m.is_promo, m.is_capture, m.promo_piece
+        c.is_check as is_check_parent, c.ep_sq,
+        m.from_sq, m.to_sq, m.piece, m.captured_piece, m.is_castle, m.is_promo, m.is_capture, m.promo_piece, m.is_ep
     FROM qs_search_space c
     , LATERAL (${getMovesSelectSQL('qs_search_space', true, 'c')}) m
     WHERE (c.is_check = 1 OR m.is_capture = 1 OR m.is_promo = 1);
@@ -669,7 +671,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
             CAST(mr.active_turn * -1 AS TINYINT) as active_turn,
             CAST(mr.active_turn AS TINYINT) as active_turn_parent,
             mr.from_sq, mr.to_sq, mr.piece, mr.captured_piece,
-            mr.is_castle, mr.is_promo, mr.is_capture, mr.promo_piece,
+            mr.is_castle, mr.is_promo, mr.is_capture, mr.promo_piece, mr.is_ep,
             mr.static_eval_parent,
             mr.is_check_parent,
             CAST((mr.castling_rights & (
@@ -683,7 +685,8 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
             )) AS HUGEINT) as castling_rights,
             ${getAppliedStateDirectSQL('mr', 'mr', 'mr.captured_piece')},
             CAST(CASE WHEN mr.piece = ${PIECES.K} THEN mr.to_sq ELSE mr.wK_sq END AS TINYINT) as wK_sq,
-            CAST(CASE WHEN mr.piece = ${PIECES.k} THEN mr.to_sq ELSE mr.bK_sq END AS TINYINT) as bK_sq
+            CAST(CASE WHEN mr.piece = ${PIECES.k} THEN mr.to_sq ELSE mr.bK_sq END AS TINYINT) as bK_sq,
+            CAST(CASE WHEN ABS(mr.piece) = ${PIECES.P} AND ABS(mr.from_sq - mr.to_sq) = 16 THEN (mr.from_sq + mr.to_sq) / 2 ELSE -1 END AS TINYINT) as ep_sq
         FROM qs_moves_raw mr
         LEFT JOIN piece_masks pm_d ON pm_d.piece = mr.piece
         LEFT JOIN piece_masks pm_a ON pm_a.piece = (CASE WHEN mr.is_promo = 1 THEN (CASE WHEN mr.promo_piece <> 0 THEN mr.promo_piece ELSE (CASE WHEN mr.active_turn = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) END) ELSE mr.piece END)
@@ -703,7 +706,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
         er.is_castle, er.is_promo, er.is_capture, er.promo_piece,
         er.wK_bb, er.wQ_bb, er.wR_bb, er.wB_bb, er.wN_bb, er.wP_bb,
         er.bK_bb, er.bQ_bb, er.bR_bb, er.bB_bb, er.bN_bb, er.bP_bb,
-        er.castling_rights, er.wK_sq, er.bK_sq, er.all_pieces,
+        er.castling_rights, er.wK_sq, er.bK_sq, er.all_pieces, er.ep_sq, er.is_ep,
         (CASE WHEN er.active_turn = ${TURNS.WHITE}
               THEN (er.wK_bb | er.wQ_bb | er.wR_bb | er.wB_bb | er.wN_bb | er.wP_bb)
               ELSE (er.bK_bb | er.bQ_bb | er.bR_bb | er.bB_bb | er.bN_bb | er.bP_bb) END) as my_pieces,
@@ -740,7 +743,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
                         WHERE piece = (CASE WHEN er.is_promo = 1 THEN (CASE WHEN er.promo_piece <> 0 THEN er.promo_piece ELSE (CASE WHEN er.active_turn_parent = ${TURNS.WHITE} THEN ${PIECES.Q} ELSE ${PIECES.q} END) END) ELSE er.piece END)
                         AND square = er.to_sq), 0)
             - COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = er.piece AND square = er.from_sq), 0)
-            - CASE WHEN er.is_capture = 1 THEN COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = er.captured_piece AND square = er.to_sq), 0) ELSE 0 END
+            - CASE WHEN er.is_capture = 1 THEN COALESCE((SELECT value * SIGN(piece) FROM pst_values WHERE piece = er.captured_piece AND square = (CASE WHEN er.is_ep = 1 THEN (CASE WHEN er.active_turn_parent = ${TURNS.WHITE} THEN er.to_sq - 8 ELSE er.to_sq + 8 END) ELSE er.to_sq END)), 0) ELSE 0 END
         )::INTEGER as static_eval,
         CAST(${getIsKingInCheckSQL('er', 'er.active_turn')} AS TINYINT) as is_check,
         ${getZobristHashSQL('er')} as board_hash
@@ -782,7 +785,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn,
+        castling_rights, active_turn, ep_sq, is_ep,
         static_eval, minimax_eval, board_hash,
         wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
@@ -791,7 +794,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn,
+        castling_rights, active_turn, ep_sq, is_ep,
         static_eval, static_eval as minimax_eval, board_hash,
         wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
@@ -803,7 +806,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn,
+        castling_rights, active_turn, ep_sq, is_ep,
         static_eval, minimax_eval, board_hash,
         wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
@@ -812,7 +815,7 @@ export function getQSExpansionSQL(qsFrontier, qsNextFrontier, qsTreeTable, qsDep
         id, parent_id, depth, from_sq, to_sq, piece, is_castle, is_promo, is_capture, captured_piece, promo_piece,
         wK_bb, wQ_bb, wR_bb, wB_bb, wN_bb, wP_bb,
         bK_bb, bQ_bb, bR_bb, bB_bb, bN_bb, bP_bb,
-        castling_rights, active_turn,
+        castling_rights, active_turn, ep_sq, is_ep,
         static_eval, static_eval as minimax_eval, board_hash,
         wK_sq, bK_sq, all_pieces,
         my_pieces, opponent_pieces, active_king_sq, passive_king_sq, is_check
