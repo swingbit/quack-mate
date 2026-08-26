@@ -77,7 +77,7 @@ The browser UI will automatically parse this and direct its REST requests to the
 
 ## Reporting Bugs
 Have you seen Quack-Mate play a move that suggests a reasoning bug? <br/>
-If so, please click on the <strong>Copy Game History</strong> button and paste the content in a new bug report.
+If so, please click on the <strong>History</strong> button and paste the content in a new bug report.
 
 ## Assets & Licenses
 - The **Project Banner** at the top of this README was generated using Google Gemini.
