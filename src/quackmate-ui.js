@@ -1107,6 +1107,14 @@ function bindEngineOptions() {
     }
 
     if (field === 'player') {
+        if (players[color].player !== finalVal) {
+            if (players[color].engine && players[color].engine.worker) {
+                try { players[color].engine.worker.terminate(); } catch(e) {}
+            }
+            players[color].engine = null;
+            players[color].engineType = null;
+            $(`#${color}-version-info`).empty();
+        }
         players[color].player = finalVal;
         updateStrategyOptions(color);
     } else {
@@ -1340,10 +1348,17 @@ function setThinking(thinking) {
 
 async function getOrInitEngine(color) {
   const player = players[color];
-  if (!player.engine) {
+  const targetType = player.player;
+
+  if (!player.engine || player.engineType !== targetType) {
+    if (player.engine && player.engine.worker) {
+      try { player.engine.worker.terminate(); } catch(e) {}
+    }
     logPlayerStatus(color, `Initializing ${color} engine...`);
     player.engine = await EngineFactory.create(color);
+    player.engineType = targetType;
   }
+
   if (player.player === 'duckdb_native' || player.player === 'duckdb_wasm') {
     // Display version info
     try {
@@ -1353,6 +1368,10 @@ async function getOrInitEngine(color) {
     } catch (e) {
         console.warn(`Failed to get version for ${color} engine:`, e);
     }
+  } else if (player.player === 'standard_js') {
+    $(`#${color}-version-info`).text('DFS JS Engine');
+  } else {
+    $(`#${color}-version-info`).empty();
   }
   return player.engine;
 }
