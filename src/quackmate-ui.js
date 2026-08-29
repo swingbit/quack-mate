@@ -15,6 +15,7 @@ import {
 } from './quackmate-wasm.js';
 import { CONFIG } from '../utils/config.js';
 import { sanFromMove, isKingInCheck } from './quackmate-san.js';
+import { GameState } from './quackmate-js-dfs.js';
 
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -476,6 +477,7 @@ function undo_move() {
     if (fen_stack.length > 1) {
       fen_stack.pop();
       move_history.pop();
+      evalHistory.pop();
     }
   }
 
@@ -486,6 +488,8 @@ function undo_move() {
     board.position(last_fen);
     updateCapturedPieces(last_fen);
     updateLastMoveUI();
+    renderEvalGraph();
+    updateInteractiveMoveHistory();
   }
 }
 
@@ -1731,9 +1735,17 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
     record_last_move(reply, `${pieceChar} ${source}-${target}${promoSuffix}`, null, duration, 0);
     updateCapturedPieces(reply);
 
-    // Record Human Stats
+    // Record Human Stats & Evaluation for the graph
     // reply is new FEN, so turn has flipped. We want stats for the player who JUST moved.
     const justMovedColor = getTurn(reply) === 'w' ? 'black' : 'white';
+    const staticScore = new GameState(reply).evaluate();
+
+    evalHistory.push({
+        moveNumber: evalHistory.length + 1,
+        score: staticScore,
+        turn: justMovedColor
+    });
+    renderEvalGraph();
 
     if (players[justMovedColor].player === 'human') {
         players[justMovedColor].stats.moves++;
