@@ -1034,7 +1034,6 @@ button.pause {
 /* White Side Header - Premium light gradient with side accent */
 .column-header-title.white-title {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-left: 4px solid #cbd5e1;
 }
 
 .column-header-title.white-title h2 {
@@ -1044,10 +1043,6 @@ button.pause {
 /* Black Side Header - Premium dark gradient with side accent */
 .column-header-title.black-title {
   background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border-left: 4px solid #475569;
-  border-right: 1px solid #1e293b;
-  border-top: 1px solid #1e293b;
-  border-bottom: 1px solid #1e293b;
 }
 
 .column-header-title.black-title h2 {
