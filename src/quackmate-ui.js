@@ -38,6 +38,35 @@ let $engineStatus = $('#engine-status')
 // Evaluation history for the live graph
 let evalHistory = [];
 
+// Per-tab console font size memory (persisted in localStorage)
+const DEFAULT_FONT_SIZE = 11;
+let tabFontSizes = {
+  'white-stats': DEFAULT_FONT_SIZE + 2,
+  'white-sql': DEFAULT_FONT_SIZE,
+  'white-plan': DEFAULT_FONT_SIZE,
+  'white-db': DEFAULT_FONT_SIZE,
+  'black-stats': DEFAULT_FONT_SIZE + 2,
+  'black-sql': DEFAULT_FONT_SIZE,
+  'black-plan': DEFAULT_FONT_SIZE,
+  'black-db': DEFAULT_FONT_SIZE
+};
+
+try {
+  const saved = localStorage.getItem('quackmate_tab_font_sizes');
+  if (saved) tabFontSizes = { ...tabFontSizes, ...JSON.parse(saved) };
+} catch(e) {}
+
+function applyTabFontSize(paneId) {
+  const size = tabFontSizes[paneId] || DEFAULT_FONT_SIZE;
+  const $pane = $('#' + paneId);
+  $pane.find('.console-output, .sql-stats-output, .tool-pane-placeholder').css('font-size', size + 'px');
+
+  const $container = $pane.closest('.tool-panel-container');
+  if ($pane.hasClass('active')) {
+    $container.find('.font-size-label').text(size + 'px');
+  }
+}
+
 // Log Streamer Utility
 class LogStreamer {
   constructor(logger) {
@@ -1384,85 +1413,121 @@ function formatTime(ms) {
   return Math.round(ms) + 'ms';
 }
 
+function formatSearchStatsTable(turn, profiling, playerState) {
+  const p = playerState;
+  const isHuman = p.player === 'human';
+  const colorName = turn === 'white' ? 'White' : 'Black';
+
+  if (!profiling && p.stats.moves === 0) {
+    return `<span class="sql-stats-comment">-- DuckDB SQL Search Profiler [${colorName}]\n-- Waiting for move calculation...</span>`;
+  }
+
+  const avgTime = p.stats.moves > 0 ? Math.round(p.stats.time / p.stats.moves) : 0;
+  const avgNodes = p.stats.moves > 0 ? Math.round(p.stats.nodes / p.stats.moves) : 0;
+
+  let out = '';
+  out += `<span class="sql-stats-comment">-- DuckDB SQL Search Profiler [${colorName} - Move ${p.stats.moves}]</span>\n`;
+
+  if (isHuman) {
+    out += `┌────────────────────────────┬────────────────┐\n`;
+    out += `│ <span class="sql-stats-header">Human Player Metric        </span> │ <span class="sql-stats-header">Value          </span> │\n`;
+    out += `├────────────────────────────┼────────────────┤\n`;
+    out += `│ Total Moves Played         │ <span class="sql-stats-num">${String(p.stats.moves).padStart(14)}</span> │\n`;
+    out += `│ Total Move Time            │ <span class="sql-stats-num">${formatTime(p.stats.time).padStart(14)}</span> │\n`;
+    out += `│ Average Time per Move      │ <span class="sql-stats-num">${formatTime(avgTime).padStart(14)}</span> │\n`;
+    out += `└────────────────────────────┴────────────────┘\n`;
+    return out;
+  }
+
+  // AI Search with Profiling Stats
+  const s = profiling && profiling.stats ? profiling.stats : null;
+  const t = s && s.timing ? s.timing : null;
+
+  const col1W = 20; // Stage
+  const col2W = 10; // Time
+  const col3W = 21; // Metric
+  const col4W = 16; // Value
+
+  out += `┌──────────────────────┬────────────┬───────────────────────┬──────────────────┐\n`;
+  out += `│ <span class="sql-stats-header">Search Component    </span> │ <span class="sql-stats-header">Duration </span>  │ <span class="sql-stats-header">Optimization Metric  </span> │ <span class="sql-stats-header">Value           </span> │\n`;
+  out += `├──────────────────────┼────────────┼───────────────────────┼──────────────────┤\n`;
+
+  // Row 1: Init & Nodes
+  const r1Comp = 'Initialization';
+  const r1Time = t ? `${Math.round(t.init)}ms` : '-';
+  const r1Met = 'Nodes Evaluated';
+  const r1Val = profiling && profiling.nodes !== undefined ? (profiling.nodes).toLocaleString() : (p.stats.nodes > 0 ? p.stats.nodes.toLocaleString() : '-');
+  out += `│ ${r1Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r1Time.padStart(col2W)}</span> │ ${r1Met.padEnd(col3W)} │ <span class="sql-stats-num">${r1Val.padStart(col4W)}</span> │\n`;
+
+  // Row 2: PV & Stability
+  const r2Comp = 'PV Search';
+  const r2Time = t ? `${Math.round(t.pv_search)}ms` : '-';
+  const r2Met = 'PV Stability';
+  let r2Val = '-';
+  if (s && s.pv_accuracy && s.pv_accuracy.total > 0) {
+    const acc = Math.round((s.pv_accuracy.correct / s.pv_accuracy.total) * 100);
+    r2Val = `${acc}% (${s.pv_accuracy.correct}/${s.pv_accuracy.total})`;
+  }
+  out += `│ ${r2Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r2Time.padStart(col2W)}</span> │ ${r2Met.padEnd(col3W)} │ <span class="sql-stats-num">${r2Val.padStart(col4W)}</span> │\n`;
+
+  // Row 3: Rest Expand & LMR
+  const r3Comp = 'Rest Expansion';
+  const r3Time = t ? `${Math.round(t.rest_prep + t.rest_expand + t.rest_overhead)}ms` : '-';
+  const r3Met = 'LMR Researches';
+  let r3Val = '-';
+  if (s && s.lmr && s.lmr.reductions > 0) {
+    const rate = Math.round((s.lmr.researches / s.lmr.reductions) * 100);
+    r3Val = `${s.lmr.researches}/${s.lmr.reductions} (${rate}%)`;
+  }
+  out += `│ ${r3Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r3Time.padStart(col2W)}</span> │ ${r3Met.padEnd(col3W)} │ <span class="sql-stats-num">${r3Val.padStart(col4W)}</span> │\n`;
+
+  // Row 4: Deepening & Reduction Rate
+  const r4Comp = 'Deepening (PVS)';
+  const r4Time = t ? `${Math.round(t.rest_deep)}ms` : '-';
+  const r4Met = 'Reduction Rate';
+  let r4Val = '-';
+  if (s && s.lmr && s.lmr.total_batches > 0) {
+    const reductionRate = Math.round((s.lmr.reductions / s.lmr.total_batches) * 100);
+    r4Val = `${reductionRate}% (${s.lmr.reductions}/${s.lmr.total_batches})`;
+  }
+  out += `│ ${r4Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r4Time.padStart(col2W)}</span> │ ${r4Met.padEnd(col3W)} │ <span class="sql-stats-num">${r4Val.padStart(col4W)}</span> │\n`;
+
+  // Row 5: Scoring & Pruned
+  const r5Comp = 'Minimax Scoring';
+  const r5Time = t ? `${Math.round(t.scoring)}ms` : '-';
+  const r5Met = 'Pruned Branches';
+  const r5Val = s && s.pruning ? String(s.pruning.pruned_parents) : '-';
+  out += `│ ${r5Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r5Time.padStart(col2W)}</span> │ ${r5Met.padEnd(col3W)} │ <span class="sql-stats-num">${r5Val.padStart(col4W)}</span> │\n`;
+
+  // Row 6: Total Duration & Nodes Avoided
+  const r6Comp = 'Total Search Time';
+  const r6Time = profiling && profiling.duration ? `${Math.round(profiling.duration)}ms` : (p.stats.time > 0 ? `${Math.round(p.stats.time)}ms` : '-');
+  const r6Met = 'Nodes Avoided';
+  let r6Val = '-';
+  if (s && s.pruning && s.pruning.estimated_nodes_avoided > 0) {
+    r6Val = (s.pruning.estimated_nodes_avoided / 1000000).toFixed(2) + 'M';
+  }
+  out += `├──────────────────────┼────────────┼───────────────────────┼──────────────────┤\n`;
+  out += `│ ${r6Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r6Time.padStart(col2W)}</span> │ ${r6Met.padEnd(col3W)} │ <span class="sql-stats-num">${r6Val.padStart(col4W)}</span> │\n`;
+
+  // Row 7: Game Averages
+  const r7Comp = 'Avg Move (Game)';
+  const r7Time = p.stats.moves > 0 ? formatTime(avgTime) : '-';
+  const r7Met = 'Avg Nodes (Game)';
+  const r7Val = p.stats.moves > 0 ? avgNodes.toLocaleString() : '-';
+  out += `│ ${r7Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r7Time.padStart(col2W)}</span> │ ${r7Met.padEnd(col3W)} │ <span class="sql-stats-num">${r7Val.padStart(col4W)}</span> │\n`;
+  out += `└──────────────────────┴────────────┴───────────────────────┴──────────────────┘\n`;
+
+  return out;
+}
+
 function updateStatsUI(turn, profiling) {
   const p = players[turn];
-  const $statEl = turn === 'white' ? $status_white : $status_black;
-  const $avgEl = turn === 'white' ? $avg_white : $avg_black;
-  const $container = $statEl.closest('.player-stats');
+  const $searchStats = $(`#${turn}-search-stats`);
 
-  // Clear previous profiling display
-  $container.find('.profiling-stats').remove();
-
-  if (p.stats.moves === 0) {
-    $statEl.html('-');
-    $avgEl.html('-');
-    return;
-  }
-
-  const avgTime = Math.round(p.stats.time / p.stats.moves);
-  const avgNodes = Math.round(p.stats.nodes / p.stats.moves);
-
-  if (p.player === 'human') {
-    // For human average, nodes don't make sense, just show time
-    $avgEl.html(`<div>Time: ${formatTime(avgTime)}</div>`);
-  } else {
-    $avgEl.html(`
-       <div>Time: ${formatTime(avgTime)}</div>
-       <div>Nodes: ${avgNodes.toLocaleString()}</div>
-     `);
-  }
-
-  // Profiling Display
-  if (!profiling) return;
-
-  if (profiling.stats) {
-         // Batched PVS Stats
-         const s = profiling.stats;
-         let html = '<div class="profiling-stats">';
-         
-         // Left Column: Detailed Timings
-         html += '<div class="profiling-section">';
-         html += '<div class="profiling-section-title">Search Timings</div>';
-         if (s.timing) {
-             const t = s.timing;
-             html += `<div class="profiling-row"><span>Initialization:</span> <span>${Math.round(t.init)}ms</span></div>`;
-             html += `<div class="profiling-row"><span>PV Search:</span> <span>${Math.round(t.pv_search)}ms</span></div>`;
-             html += `<div class="profiling-row" title="Rest Move Prep + Expansion + Overhead"><span>Rest Expansion:</span> <span>${Math.round(t.rest_prep + t.rest_expand + t.rest_overhead)}ms</span></div>`;
-             html += `<div class="profiling-row"><span>Deepening:</span> <span>${Math.round(t.rest_deep)}ms</span></div>`;
-             html += `<div class="profiling-row"><span>Minimax Scoring:</span> <span>${Math.round(t.scoring)}ms</span></div>`;
-         }
-         html += '</div>';
-
-         // Right Column: Search Optimizations & Pruning
-         html += '<div class="profiling-section profiling-section-bordered">';
-         html += '<div class="profiling-section-title">Search Optimizations</div>';
-         
-         if (s.pv_accuracy && s.pv_accuracy.total > 0) {
-             const acc = Math.round((s.pv_accuracy.correct / s.pv_accuracy.total) * 100);
-             html += `<div class="profiling-row" title="Predictive Stability: (Stable Iterations / Total Depth)"><span>PV Stability:</span> <span>${acc}% (${s.pv_accuracy.correct}/${s.pv_accuracy.total})</span></div>`;
-         }
-         
-         if (s.lmr) {
-              const rate = s.lmr.reductions > 0 ? Math.round((s.lmr.researches / s.lmr.reductions) * 100) : 0;
-              const reductionRate = s.lmr.total_batches > 0 ? Math.round((s.lmr.reductions / s.lmr.total_batches) * 100) : 0;
-              
-              html += `<div class="profiling-row" title="Late Move Reductions: Researches / Total Reductions"><span>LMR Researches:</span> <span>${s.lmr.researches}/${s.lmr.reductions} (${rate}%)</span></div>`;
-              html += `<div class="profiling-row" title="Reduction Rate: Batches Reduced / Total Batches"><span>Reduction Rate:</span> <span>${reductionRate}%</span></div>`;
-         }
-
-         if (s.pruning) {
-             html += `<div class="profiling-row" title="Pruned Parents: Branches skipped at Depth 1"><span>Pruned Branches:</span> <span>${s.pruning.pruned_parents}</span></div>`;
-             if (s.pruning.estimated_nodes_avoided > 0) {
-                 const estSaved = (s.pruning.estimated_nodes_avoided / 1000000).toFixed(1) + 'M';
-                 html += `<div class="profiling-row" title="Estimated Nodes Avoided (Branching Factor ~ 30)"><span>Nodes Avoided:</span> <span>${estSaved}</span></div>`;
-             }
-         }
-
-         html += '</div>';
-         html += '</div>';
-         
-         $container.find('.stats-row').after(html);
-         return; // STOP HERE
+  if ($searchStats.length) {
+    const tableHtml = formatSearchStatsTable(turn, profiling, p);
+    $searchStats.html(tableHtml);
   }
 }
 
@@ -1568,17 +1633,13 @@ function processMoveResult(data, duration, turn) {
     players[turn].stats.search_time += (data.search_duration || duration);
     players[turn].stats.nodes += (data.nodes || 0);
 
-    const $statEl = turn === 'white' ? $status_white : $status_black;
     const effectiveDuration = data.search_duration || duration;
 
-    $statEl.html(`
-       <div class="stats-content">
-           <div>Time: ${formatTime(duration)}</div>
-           <div>Nodes: ${(data.nodes || 0).toLocaleString()}</div>
-       </div>
-    `);
-
-    updateStatsUI(turn, data.profiling);
+    updateStatsUI(turn, {
+      ...data.profiling,
+      duration: effectiveDuration,
+      nodes: data.nodes
+    });
 
     if (turn === 'white') $player_status_white.text('Move found.');
     else $player_status_black.text('Move found.');
@@ -1751,10 +1812,7 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
         players[justMovedColor].stats.moves++;
         players[justMovedColor].stats.time += duration;
         
-        const $statEl = justMovedColor === 'white' ? $status_white : $status_black;
-        $statEl.html(`<div>Time: ${formatTime(duration)}</div>`);
-        
-        updateStatsUI(justMovedColor);
+        updateStatsUI(justMovedColor, { duration });
     }
 
     // Auto-start Black if White makes the first move of the game
@@ -2009,11 +2067,12 @@ export async function init() {
     });
   });
 
-  // Console Copy Buttons
+  // Console Copy Buttons (copies active tab output)
   $('.btn-copy-console').on('click', function (e) {
     e.stopPropagation();
-    const targetId = $(this).data('target');
-    const text = $('#' + targetId).text();
+    const $container = $(this).closest('.tool-panel-container');
+    const $activePane = $container.find('.tool-tab-pane.active .console-output');
+    const text = $activePane.text();
     if (!text || text.trim() === "") return;
 
     navigator.clipboard.writeText(text).then(() => {
@@ -2024,6 +2083,40 @@ export async function init() {
     }).catch(err => {
       console.error('Failed to copy console: ', err);
     });
+  });
+
+  // Font Size Decrement (-)
+  $('.btn-font-dec').on('click', function (e) {
+    e.stopPropagation();
+    const $container = $(this).closest('.tool-panel-container');
+    const $activePane = $container.find('.tool-tab-pane.active');
+    const paneId = $activePane.attr('id');
+    if (!paneId) return;
+
+    let currentSize = tabFontSizes[paneId] || DEFAULT_FONT_SIZE;
+    if (currentSize > 7) {
+      currentSize--;
+      tabFontSizes[paneId] = currentSize;
+      applyTabFontSize(paneId);
+      try { localStorage.setItem('quackmate_tab_font_sizes', JSON.stringify(tabFontSizes)); } catch(e) {}
+    }
+  });
+
+  // Font Size Increment (+)
+  $('.btn-font-inc').on('click', function (e) {
+    e.stopPropagation();
+    const $container = $(this).closest('.tool-panel-container');
+    const $activePane = $container.find('.tool-tab-pane.active');
+    const paneId = $activePane.attr('id');
+    if (!paneId) return;
+
+    let currentSize = tabFontSizes[paneId] || DEFAULT_FONT_SIZE;
+    if (currentSize < 24) {
+      currentSize++;
+      tabFontSizes[paneId] = currentSize;
+      applyTabFontSize(paneId);
+      try { localStorage.setItem('quackmate_tab_font_sizes', JSON.stringify(tabFontSizes)); } catch(e) {}
+    }
   });
 
   // Side Tool Tabs (White & Black)
@@ -2037,6 +2130,7 @@ export async function init() {
 
     $btn.addClass('active');
     $container.find('#' + targetPaneId).addClass('active');
+    applyTabFontSize(targetPaneId);
   });
 
   // Center Analytics Tabs
@@ -2078,6 +2172,11 @@ export async function init() {
     e.stopPropagation();
     const targetId = $(this).data('target');
     $('#' + targetId).toggleClass('collapsed');
+  });
+
+  // Apply saved/default font sizes to all console panes
+  Object.keys(tabFontSizes).forEach(paneId => {
+    applyTabFontSize(paneId);
   });
 
   renderEvalGraph();
