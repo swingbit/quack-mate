@@ -133,15 +133,64 @@
         </div>
       </div>
 
-      <div class="console-container">
-        <div class="console-header">
-          <span>White SQL Console</span>
-          <div class="console-controls">
-            <button class="btn-toggle-console" data-target="white" title="Toggle Console">Mute</button>
-            <button class="btn-copy-console" data-target="white-console" title="Copy SQL">Copy</button>
+      <!-- White Player Stats Card -->
+      <div class="player-stats white" id="player-stats-white">
+        <div class="stats-header">
+          <div class="header-main">
+            <div class="move-line">
+              <strong>Last:</strong> <span id="last_white" class="last-move-link"></span>
+            </div>
+            <div id="white-version-info" class="version-info"></div>
+          </div>
+          <div class="stats-header-right">
+            <div class="move-count-label">Move: <span id="move_count_white">0</span></div>
+            <button class="btn-toggle-card btn-toggle-stats" data-target="player-stats-white" title="Toggle Statistics">▾</button>
           </div>
         </div>
-        <div id="white-console" class="console-output"></div>
+        <div class="stats-body">
+          <div class="captured-area">
+              <span id="captured_by_white"></span>
+          </div>
+          <div class="stats-row">
+            <div class="stats-item">
+              <strong>Current</strong>
+              <div id="status_white" class="stats-value">-</div>
+            </div>
+            <div class="stats-item stats-item-bordered">
+              <strong>Average</strong>
+              <div id="avg_white" class="stats-value">-</div>
+            </div>
+          </div>
+          <div class="player-status">
+            <span id="player_status_white">Idle</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- White Tool Console & Tabs -->
+      <div class="tool-panel-container" id="tool-panel-white">
+        <div class="tool-tab-bar">
+          <div class="tool-tabs" data-side="white">
+            <button class="tool-tab-btn active" data-tab="white-sql">SQL Log</button>
+            <button class="tool-tab-btn" data-tab="white-plan">Query Plan (Coming soon)</button>
+            <button class="tool-tab-btn" data-tab="white-db">Live DB (Coming soon)</button>
+          </div>
+          <div class="console-controls">
+            <button class="btn-copy-console" data-target="white-console" title="Copy SQL">Copy</button>
+            <button class="btn-toggle-card btn-toggle-tool-panel" data-target="tool-panel-white" title="Toggle Tool Panel">▾</button>
+          </div>
+        </div>
+        <div class="tool-tab-content">
+          <div id="white-sql" class="tool-tab-pane active">
+            <div id="white-console" class="console-output"></div>
+          </div>
+          <div id="white-plan" class="tool-tab-pane">
+            <div id="white-query-plan" class="tool-pane-placeholder">DuckDB query execution plan will appear here during search.</div>
+          </div>
+          <div id="white-db" class="tool-tab-pane">
+            <div id="white-live-db" class="tool-pane-placeholder">Relational table inspector (search_tree, TT, etc.).</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -164,70 +213,36 @@
 
       <!-- Game Controls -->
       <div class="game-controls-wrapper">
-        <button id="btn-export-pgn">Export PGN</button>
-        <button id="btn-copy-history">History</button>
-        <button id="btn-reset">Reset</button>
+        <button id="btn-reset">Reset Game</button>
         <button id="btn-settings" class="btn-secondary">Settings</button>
         <button id="btn-help" class="btn-secondary">Help</button>
         <div id="engine-status" class="engine-status-text"></div>
       </div>
 
-      <div class="stats-grid">
-        <!-- Left Stats: White -->
-        <div class="player-stats white">
-          <div class="stats-header">
-            <div class="header-main">
-              <div class="move-line">
-                <strong>Last:</strong> <span id="last_white" class="last-move-link"></span>
-              </div>
-              <div id="white-version-info" class="version-info"></div>
-            </div>
-            <div class="move-count-label">Move: <span id="move_count_white">0</span></div>
+      <!-- Center Analytics Panel -->
+      <div class="center-analytics-container">
+        <div class="analytics-tab-bar">
+          <div class="analytics-tabs">
+            <button class="analytics-tab-btn active" data-tab="analytics-eval">Evaluation Graph</button>
+            <button class="analytics-tab-btn" data-tab="analytics-review">Game Review (Coming soon)</button>
+            <button class="analytics-tab-btn" data-tab="analytics-moves">Move History</button>
           </div>
-          <div class="captured-area">
-              <span id="captured_by_white"></span>
-          </div>
-          <div class="stats-row">
-            <div class="stats-item">
-              <strong>Current</strong>
-              <div id="status_white" class="stats-value">-</div>
-            </div>
-            <div class="stats-item stats-item-bordered">
-              <strong>Average</strong>
-              <div id="avg_white" class="stats-value">-</div>
-            </div>
-          </div>
-          <div class="player-status">
-            <span id="player_status_white">Idle</span>
-          </div>
+          <button id="btn-toggle-analytics" class="btn-toggle-analytics" title="Toggle Analytics Panel">▾</button>
         </div>
-
-        <!-- Right Stats: Black -->
-        <div class="player-stats black">
-          <div class="stats-header">
-            <div class="header-main">
-              <div class="move-line">
-                <strong>Last:</strong> <span id="last_black" class="last-move-link"></span>
-              </div>
-              <div id="black-version-info" class="version-info"></div>
-            </div>
-            <div class="move-count-label">Move: <span id="move_count_black">0</span></div>
+        <div class="analytics-tab-content">
+          <div id="analytics-eval" class="analytics-tab-pane active">
+            <div id="eval-graph" class="eval-graph"></div>
           </div>
-          <div class="captured-area">
-              <span id="captured_by_black"></span>
+          <div id="analytics-review" class="analytics-tab-pane">
+            <div class="tool-pane-placeholder">Game review and accuracy analysis available post-game.</div>
           </div>
-          <div class="stats-row">
-            <div class="stats-item">
-              <strong>Current</strong>
-              <div id="status_black" class="stats-value">-</div>
+          <div id="analytics-moves" class="analytics-tab-pane">
+            <div class="moves-toolbar">
+              <button id="btn-download-pgn" class="btn-analytics-action" title="Download PGN File">Download PGN</button>
+              <button id="btn-copy-pgn" class="btn-analytics-action" title="Copy PGN text to clipboard">Copy PGN</button>
+              <button id="btn-copy-history" class="btn-analytics-action" title="Copy debug history log (CSV format with nodes, timings, FEN) to clipboard">Copy Debug Log</button>
             </div>
-            <div class="stats-item stats-item-bordered">
-              <strong>Average</strong>
-              <div id="avg_black" class="stats-value">-</div>
-            </div>
-          </div>
-          <div class="player-status">
-            <span id="player_status_black">Idle</span>
+            <div id="interactive-move-history" class="interactive-move-history">No moves recorded yet.</div>
           </div>
         </div>
       </div>
@@ -324,15 +339,64 @@
         </div>
       </div>
 
-      <div class="console-container">
-        <div class="console-header">
-          <span>Black SQL Console</span>
-          <div class="console-controls">
-            <button class="btn-toggle-console" data-target="black" title="Toggle Console">Mute</button>
-            <button class="btn-copy-console" data-target="black-console" title="Copy SQL">Copy</button>
+      <!-- Black Player Stats Card -->
+      <div class="player-stats black" id="player-stats-black">
+        <div class="stats-header">
+          <div class="header-main">
+            <div class="move-line">
+              <strong>Last:</strong> <span id="last_black" class="last-move-link"></span>
+            </div>
+            <div id="black-version-info" class="version-info"></div>
+          </div>
+          <div class="stats-header-right">
+            <div class="move-count-label">Move: <span id="move_count_black">0</span></div>
+            <button class="btn-toggle-card btn-toggle-stats" data-target="player-stats-black" title="Toggle Statistics">▾</button>
           </div>
         </div>
-        <div id="black-console" class="console-output"></div>
+        <div class="stats-body">
+          <div class="captured-area">
+              <span id="captured_by_black"></span>
+          </div>
+          <div class="stats-row">
+            <div class="stats-item">
+              <strong>Current</strong>
+              <div id="status_black" class="stats-value">-</div>
+            </div>
+            <div class="stats-item stats-item-bordered">
+              <strong>Average</strong>
+              <div id="avg_black" class="stats-value">-</div>
+            </div>
+          </div>
+          <div class="player-status">
+            <span id="player_status_black">Idle</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Black Tool Console & Tabs -->
+      <div class="tool-panel-container" id="tool-panel-black">
+        <div class="tool-tab-bar">
+          <div class="tool-tabs" data-side="black">
+            <button class="tool-tab-btn active" data-tab="black-sql">SQL Log</button>
+            <button class="tool-tab-btn" data-tab="black-plan">Query Plan (Coming soon)</button>
+            <button class="tool-tab-btn" data-tab="black-db">Live DB (Coming soon)</button>
+          </div>
+          <div class="console-controls">
+            <button class="btn-copy-console" data-target="black-console" title="Copy SQL">Copy</button>
+            <button class="btn-toggle-card btn-toggle-tool-panel" data-target="tool-panel-black" title="Toggle Tool Panel">▾</button>
+          </div>
+        </div>
+        <div class="tool-tab-content">
+          <div id="black-sql" class="tool-tab-pane active">
+            <div id="black-console" class="console-output"></div>
+          </div>
+          <div id="black-plan" class="tool-tab-pane">
+            <div id="black-query-plan" class="tool-pane-placeholder">DuckDB query execution plan will appear here during search.</div>
+          </div>
+          <div id="black-db" class="tool-tab-pane">
+            <div id="black-live-db" class="tool-pane-placeholder">Relational table inspector (search_tree, TT, etc.).</div>
+          </div>
+        </div>
       </div>
     </div>
 

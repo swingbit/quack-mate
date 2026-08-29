@@ -34,6 +34,9 @@ let $move_count_white = $('#move_count_white')
 let $move_count_black = $('#move_count_black')
 let $engineStatus = $('#engine-status')
 
+// Evaluation history for the live graph
+let evalHistory = [];
+
 // Log Streamer Utility
 class LogStreamer {
   constructor(logger) {
@@ -889,6 +892,10 @@ function new_game(orientation, start_fen) {
   updateStatsUI('white');
   updateStatsUI('black');
 
+  // Reset evaluation graph
+  evalHistory = [];
+  renderEvalGraph();
+
   last_fen = custom_fen
   fen_stack = [custom_fen]
   move_history = []
@@ -896,6 +903,7 @@ function new_game(orientation, start_fen) {
   is_move_legit = false
   turn_start_time = performance.now();
   updateCapturedPieces(last_fen);
+  updateInteractiveMoveHistory();
 }
 
 function startAI(color) {
@@ -1020,6 +1028,14 @@ function record_last_move(fen, displayStr, profiling, duration, nodes) {
     nodes: nodes || 0
   });
 
+  updateInteractiveMoveHistory();
+}
+
+function updateInteractiveMoveHistory() {
+  const $el = $('#interactive-move-history');
+  if (!$el.length) return;
+  const pgnMoves = buildPgnMovetext();
+  $el.text(pgnMoves || 'No moves recorded yet.');
 }
 
 function getTurn(fen) {
@@ -1396,60 +1412,151 @@ function updateStatsUI(turn, profiling) {
   if (!profiling) return;
 
   if (profiling.stats) {
-         // New Batched PVS Stats
+         // Batched PVS Stats
          const s = profiling.stats;
          let html = '<div class="profiling-stats">';
          
-         // Left Column: Timings
-         html += '<div style="flex:1;">';
+         // Left Column: Detailed Timings
+         html += '<div class="profiling-section">';
+         html += '<div class="profiling-section-title">Search Timings</div>';
          if (s.timing) {
              const t = s.timing;
-             html += `<div style="display:flex; justify-content:space-between;"><span>Init:</span> <span>${Math.round(t.init)}ms</span></div>`;
-             html += `<div style="display:flex; justify-content:space-between;"><span>PV:</span> <span>${Math.round(t.pv_search)}ms</span></div>`;
-             // Compact breakdown to fit height
-             html += `<div style="display:flex; justify-content:space-between;" title="Prep / Expand / Overhead"><span>Pr/Ex/Ov:</span> <span>${Math.round(t.rest_prep)}/${Math.round(t.rest_expand)}/${Math.round(t.rest_overhead)}ms</span></div>`;
-             html += `<div style="display:flex; justify-content:space-between;"><span>Deep:</span> <span>${Math.round(t.rest_deep)}ms</span></div>`;
-             html += `<div style="display:flex; justify-content:space-between;"><span>Score:</span> <span>${Math.round(t.scoring)}ms</span></div>`;
+             html += `<div class="profiling-row"><span>Initialization:</span> <span>${Math.round(t.init)}ms</span></div>`;
+             html += `<div class="profiling-row"><span>PV Search:</span> <span>${Math.round(t.pv_search)}ms</span></div>`;
+             html += `<div class="profiling-row" title="Rest Move Prep + Expansion + Overhead"><span>Rest Expansion:</span> <span>${Math.round(t.rest_prep + t.rest_expand + t.rest_overhead)}ms</span></div>`;
+             html += `<div class="profiling-row"><span>Deepening:</span> <span>${Math.round(t.rest_deep)}ms</span></div>`;
+             html += `<div class="profiling-row"><span>Minimax Scoring:</span> <span>${Math.round(t.scoring)}ms</span></div>`;
          }
          html += '</div>';
 
-         // Right Column: Metrics
-         html += '<div style="flex:1; border-left: 1px solid #ddd; padding-left: 8px; display:flex; flex-direction:column; justify-content:center;">';
+         // Right Column: Search Optimizations & Pruning
+         html += '<div class="profiling-section profiling-section-bordered">';
+         html += '<div class="profiling-section-title">Search Optimizations</div>';
          
          if (s.pv_accuracy && s.pv_accuracy.total > 0) {
              const acc = Math.round((s.pv_accuracy.correct / s.pv_accuracy.total) * 100);
-             html += `<div title="Predictive Stability: (Stable Iterations / Total Depth)">PV Acc: ${acc}% <span style="color:#888">(${s.pv_accuracy.correct}/${s.pv_accuracy.total})</span></div>`;
+             html += `<div class="profiling-row" title="Predictive Stability: (Stable Iterations / Total Depth)"><span>PV Stability:</span> <span>${acc}% (${s.pv_accuracy.correct}/${s.pv_accuracy.total})</span></div>`;
          }
          
          if (s.lmr) {
               const rate = s.lmr.reductions > 0 ? Math.round((s.lmr.researches / s.lmr.reductions) * 100) : 0;
-              // Reduction Rate: Reductions / Total Batches
               const reductionRate = s.lmr.total_batches > 0 ? Math.round((s.lmr.reductions / s.lmr.total_batches) * 100) : 0;
               
-              html += `<div title="Late Move Reductions: (Failed Reductions / Total Reductions)">LMR: ${s.lmr.researches}/${s.lmr.reductions}<span style="color:#888"> (${rate}%)</span></div>`;
-              html += `<div title="Reduction Rate: (Batches Reduced / Total Batches)">Red. Rate: ${reductionRate}%</div>`;
+              html += `<div class="profiling-row" title="Late Move Reductions: Researches / Total Reductions"><span>LMR Researches:</span> <span>${s.lmr.researches}/${s.lmr.reductions} (${rate}%)</span></div>`;
+              html += `<div class="profiling-row" title="Reduction Rate: Batches Reduced / Total Batches"><span>Reduction Rate:</span> <span>${reductionRate}%</span></div>`;
          }
 
          if (s.pruning) {
-             html += `<div title="Pruned Parents: (Branches skipped at Depth 1)">Pruned: ${s.pruning.pruned_parents}</div>`;
+             html += `<div class="profiling-row" title="Pruned Parents: Branches skipped at Depth 1"><span>Pruned Branches:</span> <span>${s.pruning.pruned_parents}</span></div>`;
              if (s.pruning.estimated_nodes_avoided > 0) {
                  const estSaved = (s.pruning.estimated_nodes_avoided / 1000000).toFixed(1) + 'M';
-                 html += `<div title="Estimated Nodes Avoided (BF=30)">Est Saved: ${estSaved}</div>`;
+                 html += `<div class="profiling-row" title="Estimated Nodes Avoided (Branching Factor ~ 30)"><span>Nodes Avoided:</span> <span>${estSaved}</span></div>`;
              }
          }
 
          html += '</div>';
          html += '</div>';
          
-         $container.children('.stats-row').after(html);
+         $container.find('.stats-row').after(html);
          return; // STOP HERE
   }
+}
+
+const SCORE_CAP = 10000;  // only clamp mate scores, preserve real centipawn values
+
+function clampScore(s) {
+    return Math.max(-SCORE_CAP, Math.min(SCORE_CAP, s));
+}
+
+function renderEvalGraph() {
+    const container = document.getElementById('eval-graph');
+    if (!container) return;
+
+    if (evalHistory.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #888; font-size: 11px; padding: 12px 0;">No moves played yet</div>';
+        return;
+    }
+
+    const width = 600;
+    const height = 110;
+    const padding = { top: 12, right: 20, bottom: 22, left: 45 };
+
+    // Compute Y range from clamped scores, with 10% headroom
+    const scores = evalHistory.map(e => clampScore(e.score));
+    const rawMax = Math.max(...scores);
+    const rawMin = Math.min(...scores);
+    const absMax = Math.max(Math.abs(rawMax), Math.abs(rawMin), 150);
+    const headroom = Math.max(absMax * 0.1, 40);  // 10% padding, minimum 40cp
+    const yMax = absMax + headroom;
+    const yMin = -(absMax + headroom);
+
+    // Scale functions
+    const xScale = i => padding.left + (i / Math.max(evalHistory.length - 1, 1)) * (width - padding.left - padding.right);
+    const yScale = v => padding.top + (yMax - v) / (yMax - yMin) * (height - padding.top - padding.bottom);
+
+    // Build SVG with viewBox for responsive scaling
+    let svg = `<svg viewBox="0 0 ${width} ${height}" class="eval-graph-svg" preserveAspectRatio="none">`;
+
+    // Zero line
+    const zeroY = yScale(0);
+    svg += `<line x1="${padding.left}" y1="${zeroY}" x2="${width - padding.right}" y2="${zeroY}"
+             stroke="#999" stroke-dasharray="3,3" stroke-width="1"/>`;
+
+    // Y-axis labels (rounded to integers)
+    svg += `<text x="${padding.left - 5}" y="${yScale(yMax) + 4}" text-anchor="end" font-size="9" fill="#777">+${Math.round(yMax)}</text>`;
+    svg += `<text x="${padding.left - 5}" y="${zeroY + 3}" text-anchor="end" font-size="9" fill="#777">0</text>`;
+    svg += `<text x="${padding.left - 5}" y="${yScale(yMin) + 4}" text-anchor="end" font-size="9" fill="#777">${Math.round(yMin)}</text>`;
+
+    // Polyline points (clamped)
+    const points = evalHistory.map((e, i) => `${xScale(i)},${yScale(clampScore(e.score))}`).join(' ');
+    svg += `<polyline points="${points}" fill="none" stroke="#2b78e4" stroke-width="2" stroke-linejoin="round"/>`;
+
+    // Dots on each point — white for White's moves, dark for Black's
+    evalHistory.forEach((e, i) => {
+        const moveNum = Math.ceil(e.moveNumber / 2);
+        const plyNotation = e.turn === 'white' ? `${moveNum}.` : `${moveNum}...`;
+        const colorLabel = e.turn === 'white' ? 'White' : 'Black';
+        const cp = e.score;
+        let scoreLabel;
+        if (cp > 0) {
+            scoreLabel = `+${(cp / 100).toFixed(2)} (+${cp} cp White adv)`;
+        } else if (cp < 0) {
+            scoreLabel = `${(cp / 100).toFixed(2)} (${cp} cp Black adv)`;
+        } else {
+            scoreLabel = `0.00 (Equal)`;
+        }
+
+        const fillColor = e.turn === 'white' ? '#ffffff' : '#111111';
+        svg += `<circle cx="${xScale(i)}" cy="${yScale(clampScore(e.score))}" r="3.5"
+                 fill="${fillColor}" stroke="#2b78e4" stroke-width="1.5">
+                 <title>${plyNotation} (${colorLabel}): ${scoreLabel}</title>
+               </circle>`;
+    });
+
+    // X-axis labels (full move numbers e.g. 1, 2, 3...)
+    const step = Math.max(1, Math.floor(evalHistory.length / 10));
+    for (let i = 0; i < evalHistory.length; i += step) {
+        const fullMoveNum = Math.ceil(evalHistory[i].moveNumber / 2);
+        svg += `<text x="${xScale(i)}" y="${height - 4}" text-anchor="middle" font-size="9" fill="#777">${fullMoveNum}</text>`;
+    }
+
+    svg += '</svg>';
+    container.innerHTML = svg;
 }
 
 function processMoveResult(data, duration, turn) {
   setThinking(false);
   if (data.reason === 'found_move') {
     is_move_legit = true;
+
+    // Record evaluation normalized to White's perspective (+ = White advantage, - = Black advantage)
+    const normalizedScore = turn === 'white' ? (data.score || 0) : -(data.score || 0);
+    evalHistory.push({
+        moveNumber: evalHistory.length + 1,
+        score: normalizedScore,
+        turn: turn
+    });
+    renderEvalGraph();
 
     // Update Stats
     players[turn].stats.moves++;
@@ -1834,13 +1941,44 @@ export async function init() {
   window.addEventListener('resize', () => {
     $('#board1').css('width', '100%');
     board.resize();
+    renderEvalGraph();
   });
   updateCapturedPieces(last_fen);
   window.getDuckDBThreads = getDuckDBThreads;
 
   initUI();
 
-  // History Button
+  // Move History Panel Actions
+  $('#btn-download-pgn').on('click', function () {
+    const pgnText = getPgnText();
+    if (!pgnText) {
+      alert("No moves to export.");
+      return;
+    }
+    const $btn = $(this);
+    const originalText = $btn.text();
+    $btn.text("Downloading...");
+    downloadFile(pgnText, generatePgnFilename());
+    setTimeout(() => $btn.text(originalText), 1500);
+  });
+
+  $('#btn-copy-pgn').on('click', function () {
+    const pgnText = getPgnText();
+    if (!pgnText) {
+      alert("No moves to copy.");
+      return;
+    }
+    navigator.clipboard.writeText(pgnText).then(() => {
+      const $btn = $(this);
+      const originalText = $btn.text();
+      $btn.text("Copied!");
+      setTimeout(() => $btn.text(originalText), 1500);
+    }).catch(err => {
+      console.error('Failed to copy PGN: ', err);
+      alert("Failed to copy PGN to clipboard.");
+    });
+  });
+
   $('#btn-copy-history').on('click', function () {
     const text = getHistoryText();
     if (!text) {
@@ -1852,30 +1990,11 @@ export async function init() {
       const $btn = $(this);
       const originalText = $btn.text();
       $btn.text("Copied!");
-      setTimeout(() => $btn.text(originalText), 2000);
+      setTimeout(() => $btn.text(originalText), 1500);
     }).catch(err => {
       console.error('Failed to copy: ', err);
       alert("Failed to copy history to clipboard.");
     });
-  });
-
-  // Console Toggle (Mute) Buttons
-  $('.btn-toggle-console').on('click', function(e) {
-    e.stopPropagation();
-    const color = $(this).data('target');
-    const state = consoleStates[color];
-    state.isMuted = !state.isMuted;
-    
-    const $btn = $(this);
-    const $console = $(`#${color}-console`);
-    
-    if (state.isMuted) {
-        $btn.text('Unmute').addClass('active');
-        $console.addClass('muted');
-    } else {
-        $btn.text('Mute').removeClass('active');
-        $console.removeClass('muted');
-    }
   });
 
   // Console Copy Buttons
@@ -1895,20 +2014,61 @@ export async function init() {
     });
   });
 
-  // Export PGN Button
-  $('#btn-export-pgn').on('click', function () {
-    const pgnText = getPgnText();
-    if (!pgnText) {
-      alert("No moves to export.");
-      return;
-    }
+  // Side Tool Tabs (White & Black)
+  $('.tool-tab-btn').on('click', function () {
     const $btn = $(this);
-    const originalText = $btn.text();
-    $btn.text("Exporting...");
-    downloadFile(pgnText, generatePgnFilename());
-    setTimeout(() => $btn.text(originalText), 2000);
+    const targetPaneId = $btn.data('tab');
+    const $container = $btn.closest('.tool-panel-container');
+
+    $container.find('.tool-tab-btn').removeClass('active');
+    $container.find('.tool-tab-pane').removeClass('active');
+
+    $btn.addClass('active');
+    $container.find('#' + targetPaneId).addClass('active');
   });
 
+  // Center Analytics Tabs
+  $('.analytics-tab-btn').on('click', function () {
+    const $btn = $(this);
+    const targetPaneId = $btn.data('tab');
+    const $container = $btn.closest('.center-analytics-container');
+
+    // Ensure drawer is open if a tab is clicked
+    $container.removeClass('collapsed');
+
+    $container.find('.analytics-tab-btn').removeClass('active');
+    $container.find('.analytics-tab-pane').removeClass('active');
+
+    $btn.addClass('active');
+    $container.find('#' + targetPaneId).addClass('active');
+
+    if (targetPaneId === 'analytics-eval') {
+      renderEvalGraph();
+    } else if (targetPaneId === 'analytics-moves') {
+      updateInteractiveMoveHistory();
+    }
+  });
+
+  // Center Analytics Drawer Toggle
+  $('#btn-toggle-analytics').on('click', function () {
+    $('.center-analytics-container').toggleClass('collapsed');
+  });
+
+  // Player Stats Card Collapse Toggle
+  $('.btn-toggle-stats').on('click', function (e) {
+    e.stopPropagation();
+    const targetId = $(this).data('target');
+    $('#' + targetId).toggleClass('collapsed');
+  });
+
+  // Tool Panel Console Collapse Toggle
+  $('.btn-toggle-tool-panel').on('click', function (e) {
+    e.stopPropagation();
+    const targetId = $(this).data('target');
+    $('#' + targetId).toggleClass('collapsed');
+  });
+
+  renderEvalGraph();
 }
 
 const pieceInfos = {
