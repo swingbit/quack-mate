@@ -1430,7 +1430,7 @@ function formatSearchStatsTable(turn, profiling, playerState) {
 
   if (isHuman) {
     out += `┌────────────────────────────┬────────────────┐\n`;
-    out += `│ <span class="sql-stats-header">Human Player Metric        </span> │ <span class="sql-stats-header">Value          </span> │\n`;
+    out += `│ <span class="sql-stats-header">Human Player Metric       </span> │ <span class="sql-stats-header">Value          </span> │\n`;
     out += `├────────────────────────────┼────────────────┤\n`;
     out += `│ Total Moves Played         │ <span class="sql-stats-num">${String(p.stats.moves).padStart(14)}</span> │\n`;
     out += `│ Total Move Time            │ <span class="sql-stats-num">${formatTime(p.stats.time).padStart(14)}</span> │\n`;
