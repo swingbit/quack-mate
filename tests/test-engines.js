@@ -47,9 +47,7 @@ async function verifyPosition(nodeInstance, positionName, fen, depth, customOpti
     if (nodeMove !== stdMove) {
         throw new Error(`Move mismatch on ${positionName}! SQL got ${nodeMove}, JS got ${stdMove}`);
     }
-    const isWhiteTurn = fen.split(' ')[1] === 'w';
-    const isBatchedPVS = sqlOptions.strategy === 'batched_pvs';
-    const expectedScore = isBatchedPVS ? stdRes.score : (stdRes.score * (isWhiteTurn ? 1 : -1));
+    const expectedScore = stdRes.score;
     
     const isNodeMate = nodeRes.score === -Infinity || nodeRes.score === Infinity || Math.abs(nodeRes.score) >= 800000;
     const isStdMate = expectedScore === -Infinity || expectedScore === Infinity || Math.abs(expectedScore) >= 800000;
