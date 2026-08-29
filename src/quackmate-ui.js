@@ -15,7 +15,7 @@ import {
 } from './quackmate-wasm.js';
 import { CONFIG } from '../utils/config.js';
 import { sanFromMove, isKingInCheck } from './quackmate-san.js';
-import { GameState } from './quackmate-js-dfs.js';
+import { GameState, find_best_move as find_best_move_js } from './quackmate-js-dfs.js';
 
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -1815,14 +1815,25 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
     record_last_move(reply, `${pieceChar} ${source}-${target}${promoSuffix}`, null, duration, 0);
     updateCapturedPieces(reply);
 
-    // Record Human Stats & Evaluation for the graph
+    // Record Human Stats & Minimax Evaluation for the graph
     // reply is new FEN, so turn has flipped. We want stats for the player who JUST moved.
     const justMovedColor = getTurn(reply) === 'w' ? 'black' : 'white';
-    const staticScore = new GameState(reply).evaluate();
+    const nextTurn = getTurn(reply);
+
+    // Minimax search evaluation of resulting position at depth N-1 (since ply 1 was just played by the human)
+    const configuredDepth = players[justMovedColor]?.options?.maxDepth || players[nextTurn === 'w' ? 'white' : 'black']?.options?.maxDepth || 3;
+    const evalDepth = Math.max(1, configuredDepth - 1);
+    let minimaxScore = 0;
+    try {
+      const searchRes = await find_best_move_js(reply, { maxDepth: evalDepth });
+      minimaxScore = nextTurn === 'w' ? searchRes.score : -searchRes.score;
+    } catch(e) {
+      minimaxScore = new GameState(reply).evaluate();
+    }
 
     evalHistory.push({
         moveNumber: evalHistory.length + 1,
-        score: staticScore,
+        score: minimaxScore,
         turn: justMovedColor
     });
     renderEvalGraph();
