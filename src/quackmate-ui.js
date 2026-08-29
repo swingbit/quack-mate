@@ -14,8 +14,10 @@ import {
   RESTRICTED_MODE_LIMITS
 } from './quackmate-wasm.js';
 import { CONFIG } from '../utils/config.js';
+import { TURNS, SCORE_MATE_THRESHOLD } from './quackmate-common.js';
 import { sanFromMove, isKingInCheck } from './quackmate-san.js';
 import { GameState, find_best_move as find_best_move_js } from './quackmate-js-dfs.js';
+import { renderEvalGraph as renderEvalGraphSVG } from './quackmate-ui-eval-graph.js';
 
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -25,10 +27,6 @@ let isRestrictedMode = false;
 let sanitizeTimeout = null
 let $last_white = $('#last_white')
 let $last_black = $('#last_black')
-let $status_white = $('#status_white')
-let $status_black = $('#status_black')
-let $avg_white = $('#avg_white')
-let $avg_black = $('#avg_black')
 let $player_status_white = $('#player_status_white')
 let $player_status_black = $('#player_status_black')
 let $move_count_white = $('#move_count_white')
@@ -1550,99 +1548,63 @@ function updateStatsUI(turn, profiling) {
   }
 }
 
-const SCORE_CAP = 10000;  // only clamp mate scores, preserve real centipawn values
+/**
+ * Evaluates the board position from an independent, neutral perspective (normalized to White: + White, - Black).
+ *
+ * Why Depth 2 + QS 2 on post-move FEN:
+ * - Since the move just landed, active_turn has already flipped to the opponent.
+ * - Searching at even Depth 2 evaluates the opponent's reply (Ply 1) + our counter-reply (Ply 2),
+ *   guaranteeing symmetrical move counts at the leaf nodes and eliminating odd-even horizon oscillations.
+ * - Quiescence Search (QS) resolves tactical capture chains, preventing horizon blindness on blunders.
+ */
+async function evaluateNeutralPosition(fen) {
+  try {
+    const game = new GameState(fen);
+    const legalMoves = game.generateMoves({ legal: true, type: 'all' });
+    if (legalMoves.length === 0) {
+      if (game.isKingInCheck(game.turn)) {
+        return game.turn === TURNS.WHITE ? -SCORE_MATE_THRESHOLD : SCORE_MATE_THRESHOLD;
+      }
+      return 0; // Stalemate
+    }
 
-function clampScore(s) {
-    return Math.max(-SCORE_CAP, Math.min(SCORE_CAP, s));
+    // Lookahead search (Depth 2 + Quiescence Search) to resolve tactical captures & avoid horizon blindness
+    const searchRes = await find_best_move_js(fen, { maxDepth: 2, maxDepthQS: 2 });
+    const isWhiteTurn = game.turn === TURNS.WHITE;
+    return isWhiteTurn ? searchRes.score : -searchRes.score;
+  } catch (e) {
+    console.warn("Failed to evaluate neutral position:", e);
+    try {
+      return new GameState(fen).evaluate();
+    } catch {
+      return 0;
+    }
+  }
 }
 
+/**
+ * Thin wrapper: delegates rendering to the dedicated eval-graph module.
+ * Keeps the `evalHistory` global and `getSanForMove` binding in this file
+ * while all SVG rendering logic lives in quackmate-eval-graph.js.
+ */
 function renderEvalGraph() {
-    const container = document.getElementById('eval-graph');
-    if (!container) return;
-
-    if (evalHistory.length === 0) {
-        container.innerHTML = '<div style="text-align: center; color: #888; font-size: 11px; padding: 12px 0;">No moves played yet</div>';
-        return;
-    }
-
-    const width = 600;
-    const height = 110;
-    const padding = { top: 12, right: 20, bottom: 22, left: 45 };
-
-    // Compute Y range from clamped scores, with 10% headroom
-    const scores = evalHistory.map(e => clampScore(e.score));
-    const rawMax = Math.max(...scores);
-    const rawMin = Math.min(...scores);
-    const absMax = Math.max(Math.abs(rawMax), Math.abs(rawMin), 150);
-    const headroom = Math.max(absMax * 0.1, 40);  // 10% padding, minimum 40cp
-    const yMax = absMax + headroom;
-    const yMin = -(absMax + headroom);
-
-    // Scale functions
-    const xScale = i => padding.left + (i / Math.max(evalHistory.length - 1, 1)) * (width - padding.left - padding.right);
-    const yScale = v => padding.top + (yMax - v) / (yMax - yMin) * (height - padding.top - padding.bottom);
-
-    // Build SVG with viewBox for responsive scaling
-    let svg = `<svg viewBox="0 0 ${width} ${height}" class="eval-graph-svg" preserveAspectRatio="none">`;
-
-    // Zero line
-    const zeroY = yScale(0);
-    svg += `<line x1="${padding.left}" y1="${zeroY}" x2="${width - padding.right}" y2="${zeroY}"
-             stroke="#999" stroke-dasharray="3,3" stroke-width="1"/>`;
-
-    // Y-axis labels (rounded to integers)
-    svg += `<text x="${padding.left - 5}" y="${yScale(yMax) + 4}" text-anchor="end" font-size="9" fill="#777">+${Math.round(yMax)}</text>`;
-    svg += `<text x="${padding.left - 5}" y="${zeroY + 3}" text-anchor="end" font-size="9" fill="#777">0</text>`;
-    svg += `<text x="${padding.left - 5}" y="${yScale(yMin) + 4}" text-anchor="end" font-size="9" fill="#777">${Math.round(yMin)}</text>`;
-
-    // Polyline points (clamped)
-    const points = evalHistory.map((e, i) => `${xScale(i)},${yScale(clampScore(e.score))}`).join(' ');
-    svg += `<polyline points="${points}" fill="none" stroke="#2b78e4" stroke-width="2" stroke-linejoin="round"/>`;
-
-    // Dots on each point — white for White's moves, dark for Black's
-    evalHistory.forEach((e, i) => {
-        const moveNum = Math.ceil(e.moveNumber / 2);
-        const plyNotation = e.turn === 'white' ? `${moveNum}.` : `${moveNum}...`;
-        const colorLabel = e.turn === 'white' ? 'White' : 'Black';
-        const cp = e.score;
-        let scoreLabel;
-        if (cp > 0) {
-            scoreLabel = `+${(cp / 100).toFixed(2)} (+${cp} cp White adv)`;
-        } else if (cp < 0) {
-            scoreLabel = `${(cp / 100).toFixed(2)} (${cp} cp Black adv)`;
-        } else {
-            scoreLabel = `0.00 (Equal)`;
-        }
-
-        const fillColor = e.turn === 'white' ? '#ffffff' : '#111111';
-        svg += `<circle cx="${xScale(i)}" cy="${yScale(clampScore(e.score))}" r="3.5"
-                 fill="${fillColor}" stroke="#2b78e4" stroke-width="1.5">
-                 <title>${plyNotation} (${colorLabel}): ${scoreLabel}</title>
-               </circle>`;
-    });
-
-    // X-axis labels (full move numbers e.g. 1, 2, 3...)
-    const step = Math.max(1, Math.floor(evalHistory.length / 10));
-    for (let i = 0; i < evalHistory.length; i += step) {
-        const fullMoveNum = Math.ceil(evalHistory[i].moveNumber / 2);
-        svg += `<text x="${xScale(i)}" y="${height - 4}" text-anchor="middle" font-size="9" fill="#777">${fullMoveNum}</text>`;
-    }
-
-    svg += '</svg>';
-    container.innerHTML = svg;
+    renderEvalGraphSVG(evalHistory, getSanForMove, last_fen);
 }
 
-function processMoveResult(data, duration, turn) {
+async function processMoveResult(data, duration, turn) {
   setThinking(false);
   if (data.reason === 'found_move') {
     is_move_legit = true;
 
-    // Record evaluation normalized to White's perspective (+ = White advantage, - = Black advantage)
-    const normalizedScore = turn === 'white' ? (data.score || 0) : -(data.score || 0);
+    // Record evaluation from neutral perspective (+ = White advantage, - = Black advantage)
+    const neutralScore = await evaluateNeutralPosition(data.fen);
+    const configuredDepth = players[turn]?.options?.maxDepth || 3;
     evalHistory.push({
         moveNumber: evalHistory.length + 1,
-        score: normalizedScore,
-        turn: turn
+        score: neutralScore,
+        turn: turn,
+        fen: data.fen,
+        depth: configuredDepth
     });
     renderEvalGraph();
 
@@ -1815,26 +1777,18 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
     record_last_move(reply, `${pieceChar} ${source}-${target}${promoSuffix}`, null, duration, 0);
     updateCapturedPieces(reply);
 
-    // Record Human Stats & Minimax Evaluation for the graph
+    // Record Human Stats & Evaluation for the graph
     // reply is new FEN, so turn has flipped. We want stats for the player who JUST moved.
     const justMovedColor = getTurn(reply) === 'w' ? 'black' : 'white';
-    const nextTurn = getTurn(reply);
-
-    // Minimax search evaluation of resulting position at depth N-1 (since ply 1 was just played by the human)
-    const configuredDepth = players[justMovedColor]?.options?.maxDepth || players[nextTurn === 'w' ? 'white' : 'black']?.options?.maxDepth || 3;
-    const evalDepth = Math.max(1, configuredDepth - 1);
-    let minimaxScore = 0;
-    try {
-      const searchRes = await find_best_move_js(reply, { maxDepth: evalDepth });
-      minimaxScore = nextTurn === 'w' ? searchRes.score : -searchRes.score;
-    } catch(e) {
-      minimaxScore = new GameState(reply).evaluate();
-    }
+    const configuredDepth = players[justMovedColor]?.options?.maxDepth || 3;
+    const neutralScore = await evaluateNeutralPosition(reply);
 
     evalHistory.push({
         moveNumber: evalHistory.length + 1,
-        score: minimaxScore,
-        turn: justMovedColor
+        score: neutralScore,
+        turn: justMovedColor,
+        fen: reply,
+        depth: configuredDepth
     });
     renderEvalGraph();
 
@@ -2187,7 +2141,11 @@ export async function init() {
 
   // Center Analytics Drawer Toggle
   $('#btn-toggle-analytics').on('click', function () {
-    $('.center-analytics-container').toggleClass('collapsed');
+    const $container = $('.center-analytics-container');
+    $container.toggleClass('collapsed');
+    if (!$container.hasClass('collapsed') && $('.analytics-tab-btn[data-tab="analytics-eval"]').hasClass('active')) {
+      setTimeout(() => renderEvalGraph(), 50);
+    }
   });
 
   // Player Stats Card Collapse Toggle

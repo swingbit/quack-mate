@@ -1369,6 +1369,9 @@ button.pause {
   align-items: center;
   justify-content: center;
   height: 100%;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
 }
 
 .eval-graph-svg {
@@ -1376,6 +1379,25 @@ button.pause {
   width: 100%;
   height: 100%;
   flex: 1;
+  cursor: crosshair;
+}
+
+.eval-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 10px rgba(56, 189, 248, 0.15);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+  font-size: 11px;
+  color: #f1f5f9;
+  z-index: 50;
+  white-space: nowrap;
+  transition: opacity 0.12s ease;
 }
 
 
