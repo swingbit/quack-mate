@@ -421,6 +421,7 @@ let gameResult = '*';
 // History navigation state
 let isHistoryNavigating = false;
 let historyNavIndex = -1;
+let savedRunningStates = { white: false, black: false };
 
 // Player State
 const players = {
@@ -931,6 +932,11 @@ function new_game(orientation, start_fen) {
   // Reset evaluation graph
   evalHistory = [];
   renderEvalGraph();
+
+  // Reset history navigation state
+  isHistoryNavigating = false;
+  historyNavIndex = -1;
+  savedRunningStates = { white: false, black: false };
 
   last_fen = custom_fen
   fen_stack = [custom_fen]
@@ -1631,16 +1637,19 @@ function showGameHistoryView(view) {
 function onEvalNodeClick(index, item) {
     if (!isHistoryNavigating) return;
     if (index < 0 || index >= evalHistory.length) return;
-    if (index >= fen_stack.length - 1) {
+
+    // Use the FEN stored in the evalHistory entry directly (most reliable)
+    const targetFen = item.fen;
+    if (!targetFen) return;
+
+    // Check if the target position is the current board position (last entry in fen_stack)
+    const isCurrentPosition = targetFen === fen_stack[fen_stack.length - 1];
+    if (isCurrentPosition) {
         // Clicking the current/last position — just highlight it, no board change
         historyNavIndex = index;
         renderEvalGraph();
         return;
     }
-
-    // Map evalHistory index to fen_stack index: evalHistory[i] → fen_stack[i+1]
-    const targetFen = fen_stack[index + 1];
-    if (!targetFen) return;
 
     historyNavIndex = index;
     last_fen = targetFen;
@@ -1658,6 +1667,10 @@ function onEvalNodeClick(index, item) {
 function enterHistoryNavigation() {
     if (evalHistory.length === 0) return;
     if (isHistoryNavigating) return;
+
+    // Save running states so we can restore them on exit
+    savedRunningStates.white = players.white.running;
+    savedRunningStates.black = players.black.running;
 
     // Pause both AIs
     pauseAI('white');
@@ -1687,17 +1700,22 @@ function exitHistoryNavigation(resume) {
     if (!isHistoryNavigating) return;
 
     if (resume && historyNavIndex >= 0 && historyNavIndex < evalHistory.length) {
-        // Truncate all history arrays at the selected node
-        const truncateAt = historyNavIndex + 1; // evalHistory[historyNavIndex] → fen_stack[historyNavIndex+1]
-        if (truncateAt < fen_stack.length) {
-            fen_stack.length = truncateAt;
-            last_fen = fen_stack[fen_stack.length - 1];
+        // Keep the position the user selected: evalHistory[historyNavIndex] = fen_stack[historyNavIndex+1]
+        // So we need fen_stack to keep elements 0..historyNavIndex+1 (length = historyNavIndex + 2)
+        // evalHistory and move_history keep elements 0..historyNavIndex (length = historyNavIndex + 1)
+        const fenTruncateAt = historyNavIndex + 2;
+        if (fenTruncateAt < fen_stack.length) {
+            fen_stack.length = fenTruncateAt;
         }
-        if (historyNavIndex < move_history.length) {
-            move_history.length = historyNavIndex;
+        // last_fen should be the position the user is looking at: fen_stack[historyNavIndex + 1]
+        last_fen = fen_stack[Math.min(historyNavIndex + 1, fen_stack.length - 1)];
+
+        const historyTruncateAt = historyNavIndex + 1;
+        if (historyTruncateAt < move_history.length) {
+            move_history.length = historyTruncateAt;
         }
-        if (historyNavIndex < evalHistory.length) {
-            evalHistory.length = historyNavIndex;
+        if (historyTruncateAt < evalHistory.length) {
+            evalHistory.length = historyTruncateAt;
         }
 
         // Reset engines to clear TT, killer, history tables
@@ -1713,13 +1731,6 @@ function exitHistoryNavigation(resume) {
         updateLastMoveUI();
         updateInteractiveMoveHistory();
         renderEvalGraph();
-
-        // Re-start appropriate AI if it was running
-        const turn = getTurn(last_fen) === 'w' ? 'white' : 'black';
-        if (players[turn].player !== 'human' && !players[turn].running) {
-            players[turn].running = true;
-            updateStatus(turn);
-        }
     } else if (!resume && historyNavIndex >= 0) {
         // Restore to the original latest position
         last_fen = fen_stack[fen_stack.length - 1];
@@ -1737,6 +1748,27 @@ function exitHistoryNavigation(resume) {
     $('#btn-resume-history').prop('disabled', true);
 
     renderEvalGraph();
+
+    // Restore running states and trigger move if needed
+    // (must happen after renderEvalGraph since it may reset the graph)
+    turn_start_time = performance.now();
+    const turn = getTurn(last_fen) === 'w' ? 'white' : 'black';
+
+    // Restore both players' running states
+    ['white', 'black'].forEach(c => {
+        if (savedRunningStates[c]) {
+            players[c].running = true;
+            updateStatus(c);
+        } else {
+            players[c].running = false;
+            updateStatus(c);
+        }
+    });
+
+    // If it's the current player's turn and they should be running, trigger the move
+    if (savedRunningStates[turn] || players[turn].player === 'human') {
+        triggerChessMove(last_fen);
+    }
 }
 
 async function processMoveResult(data, duration, turn) {
