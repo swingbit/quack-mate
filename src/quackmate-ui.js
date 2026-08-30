@@ -418,6 +418,10 @@ let turn_start_time = 0;
 let move_history = [];
 let gameResult = '*';
 
+// History navigation state
+let isHistoryNavigating = false;
+let historyNavIndex = -1;
+
 // Player State
 const players = {
   white: {
@@ -498,6 +502,7 @@ function updateLastMoveUI() {
 
 function undo_move() {
   if (is_thinking) return;
+  if (isHistoryNavigating) return;
 
   // Undo 2 ply (1 full move)
   for (let i = 0; i < 2; i++) {
@@ -1376,6 +1381,7 @@ async function getOrInitEngine(color) {
 
 async function triggerChessMove(fromFEN, forceAI = false) {
   if (is_thinking) return;
+  if (isHistoryNavigating) return;
 
   const turn = getTurn(fromFEN) === 'w' ? 'white' : 'black';
   const player = players[turn];
@@ -1446,13 +1452,13 @@ function formatSearchStatsTable(turn, profiling, playerState) {
   out += `<span class="sql-stats-comment">-- DuckDB SQL Search Profiler [${colorName} - Move ${p.stats.moves}]</span>\n`;
 
   if (isHuman) {
-    out += `┌────────────────────────────┬────────────────┐\n`;
+    out += `┌----------------------------┬----------------┐\n`;
     out += `│ <span class="sql-stats-header">Human Player Metric       </span> │ <span class="sql-stats-header">Value         </span> │\n`;
-    out += `├────────────────────────────┼────────────────┤\n`;
+    out += `├----------------------------┼----------------┤\n`;
     out += `│ Total Moves Played         │ <span class="sql-stats-num">${String(p.stats.moves).padStart(14)}</span> │\n`;
     out += `│ Total Move Time            │ <span class="sql-stats-num">${formatTime(p.stats.time).padStart(14)}</span> │\n`;
     out += `│ Average Time per Move      │ <span class="sql-stats-num">${formatTime(avgTime).padStart(14)}</span> │\n`;
-    out += `└────────────────────────────┴────────────────┘\n`;
+    out += `└----------------------------┴----------------┘\n`;
     return out;
   }
 
@@ -1465,9 +1471,9 @@ function formatSearchStatsTable(turn, profiling, playerState) {
   const col3W = 21; // Metric
   const col4W = 16; // Value
 
-  out += `┌──────────────────────┬────────────┬───────────────────────┬──────────────────┐\n`;
+  out += `┌----------------------┬------------┬-----------------------┬------------------┐\n`;
   out += `│ <span class="sql-stats-header">Search Component    </span> │ <span class="sql-stats-header">Duration </span>  │ <span class="sql-stats-header">Optimization Metric  </span> │ <span class="sql-stats-header">Value           </span> │\n`;
-  out += `├──────────────────────┼────────────┼───────────────────────┼──────────────────┤\n`;
+  out += `├----------------------┼------------┼-----------------------┼------------------┤\n`;
 
   // Row 1: Init & Nodes
   const r1Comp = 'Initialization';
@@ -1524,7 +1530,7 @@ function formatSearchStatsTable(turn, profiling, playerState) {
   if (s && s.pruning && s.pruning.estimated_nodes_avoided > 0) {
     r6Val = (s.pruning.estimated_nodes_avoided / 1000000).toFixed(2) + 'M';
   }
-  out += `├──────────────────────┼────────────┼───────────────────────┼──────────────────┤\n`;
+  out += `├----------------------┼------------┼-----------------------┼------------------┤\n`;
   out += `│ ${r6Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r6Time.padStart(col2W)}</span> │ ${r6Met.padEnd(col3W)} │ <span class="sql-stats-num">${r6Val.padStart(col4W)}</span> │\n`;
 
   // Row 7: Game Averages
@@ -1533,7 +1539,7 @@ function formatSearchStatsTable(turn, profiling, playerState) {
   const r7Met = 'Avg Nodes (Game)';
   const r7Val = p.stats.moves > 0 ? avgNodes.toLocaleString() : '-';
   out += `│ ${r7Comp.padEnd(col1W)} │ <span class="sql-stats-num">${r7Time.padStart(col2W)}</span> │ ${r7Met.padEnd(col3W)} │ <span class="sql-stats-num">${r7Val.padStart(col4W)}</span> │\n`;
-  out += `└──────────────────────┴────────────┴───────────────────────┴──────────────────┘\n`;
+  out += `└----------------------┴------------┴-----------------------┴------------------┘\n`;
 
   return out;
 }
@@ -1586,9 +1592,151 @@ async function evaluateNeutralPosition(fen) {
  * Thin wrapper: delegates rendering to the dedicated eval-graph module.
  * Keeps the `evalHistory` global and `getSanForMove` binding in this file
  * while all SVG rendering logic lives in quackmate-eval-graph.js.
+ * Passes `onNodeClick` and `selectedIndex` for history navigation.
  */
 function renderEvalGraph() {
-    renderEvalGraphSVG(evalHistory, getSanForMove, last_fen);
+    const onNodeClick = isHistoryNavigating ? onEvalNodeClick : undefined;
+    const selectedIndex = isHistoryNavigating ? historyNavIndex : undefined;
+    renderEvalGraphSVG(evalHistory, getSanForMove, last_fen, onNodeClick, selectedIndex);
+}
+
+// Game History View Toggle (Graph / Text)
+
+function showGameHistoryView(view) {
+    const $graphView = $('#game-history-graph-view');
+    const $textView = $('#game-history-text-view');
+
+    if (view === 'text') {
+        $graphView.hide();
+        $textView.show();
+        $('#btn-view-graph').removeClass('active');
+        $('#btn-view-text').addClass('active');
+        updateInteractiveMoveHistory();
+    } else {
+        $textView.hide();
+        $graphView.show();
+        $('#btn-view-text').removeClass('active');
+        $('#btn-view-graph').addClass('active');
+        renderEvalGraph();
+    }
+}
+
+// History Navigation State Machine
+
+/**
+ * Called when the user clicks a data-point node on the eval graph.
+ * Only fires when isHistoryNavigating is true.
+ * Resets the board to the position at that history index.
+ */
+function onEvalNodeClick(index, item) {
+    if (!isHistoryNavigating) return;
+    if (index < 0 || index >= evalHistory.length) return;
+    if (index >= fen_stack.length - 1) {
+        // Clicking the current/last position — just highlight it, no board change
+        historyNavIndex = index;
+        renderEvalGraph();
+        return;
+    }
+
+    // Map evalHistory index to fen_stack index: evalHistory[i] → fen_stack[i+1]
+    const targetFen = fen_stack[index + 1];
+    if (!targetFen) return;
+
+    historyNavIndex = index;
+    last_fen = targetFen;
+    board.position(last_fen);
+    updateCapturedPieces(last_fen);
+    renderEvalGraph();
+
+    // Enable the "Resume from here" button
+    $('#btn-resume-history').prop('disabled', false);
+}
+
+/**
+ * Enter history navigation mode: pause play, show nav bar, make nodes clickable.
+ */
+function enterHistoryNavigation() {
+    if (evalHistory.length === 0) return;
+    if (isHistoryNavigating) return;
+
+    // Pause both AIs
+    pauseAI('white');
+    pauseAI('black');
+
+    isHistoryNavigating = true;
+    historyNavIndex = -1;
+
+    // Show nav bar, hide default toolbar actions
+    $('#nav-mode-bar').show();
+    $('#btn-navigate-history').addClass('active');
+    $('#btn-resume-history').prop('disabled', true);
+
+    // Switch to graph view if user was in text view
+    showGameHistoryView('graph');
+
+    // Re-render graph with clickable nodes (no selection yet)
+    renderEvalGraph();
+}
+
+/**
+ * Exit history navigation mode.
+ * If `resume` is true, truncate history at the selected node and resume play.
+ * If `resume` is false, cancel and restore the original position.
+ */
+function exitHistoryNavigation(resume) {
+    if (!isHistoryNavigating) return;
+
+    if (resume && historyNavIndex >= 0 && historyNavIndex < evalHistory.length) {
+        // Truncate all history arrays at the selected node
+        const truncateAt = historyNavIndex + 1; // evalHistory[historyNavIndex] → fen_stack[historyNavIndex+1]
+        if (truncateAt < fen_stack.length) {
+            fen_stack.length = truncateAt;
+            last_fen = fen_stack[fen_stack.length - 1];
+        }
+        if (historyNavIndex < move_history.length) {
+            move_history.length = historyNavIndex;
+        }
+        if (historyNavIndex < evalHistory.length) {
+            evalHistory.length = historyNavIndex;
+        }
+
+        // Reset engines to clear TT, killer, history tables
+        ['white', 'black'].forEach(c => {
+            if (players[c].engine && typeof players[c].engine.resetGame === 'function') {
+                players[c].engine.resetGame().catch(console.error);
+            }
+        });
+
+        // Update board and UI
+        board.position(last_fen);
+        updateCapturedPieces(last_fen);
+        updateLastMoveUI();
+        updateInteractiveMoveHistory();
+        renderEvalGraph();
+
+        // Re-start appropriate AI if it was running
+        const turn = getTurn(last_fen) === 'w' ? 'white' : 'black';
+        if (players[turn].player !== 'human' && !players[turn].running) {
+            players[turn].running = true;
+            updateStatus(turn);
+        }
+    } else if (!resume && historyNavIndex >= 0) {
+        // Restore to the original latest position
+        last_fen = fen_stack[fen_stack.length - 1];
+        board.position(last_fen);
+        updateCapturedPieces(last_fen);
+    }
+
+    // Clean up nav state
+    isHistoryNavigating = false;
+    historyNavIndex = -1;
+
+    // Hide nav bar, restore toolbar
+    $('#nav-mode-bar').hide();
+    $('#btn-navigate-history').removeClass('active');
+    $('#btn-resume-history').prop('disabled', true);
+
+    renderEvalGraph();
 }
 
 async function processMoveResult(data, duration, turn) {
@@ -1710,7 +1858,7 @@ function promptPromotion(color) {
 }
 
 async function onDrop(source, target, piece, newPos, oldPos, orientation) {
-  if (is_thinking) return 'snapback';
+  if (is_thinking || isHistoryNavigating) return 'snapback';
 
   // Prevent human moving if it's AI turn (unless we want to allow override?)
   const turn = getTurn(last_fen) === 'w' ? 'white' : 'black';
@@ -1829,8 +1977,10 @@ function onMoveEnd(oldPos, newPos) {
 }
 
 function onDragStart(source, piece, position, orientation) {
+  // Block dragging during history navigation or thinking
+  if (isHistoryNavigating || is_thinking) return false;
   const turn = getTurn(last_fen) === 'w' ? 'white' : 'black';
-  if (is_thinking || players[turn].player !== 'human') {
+  if (players[turn].player !== 'human') {
     return false;
   }
 }
@@ -2002,6 +2152,29 @@ export async function init() {
 
   initUI();
 
+  // Game History Tab: View Toggle
+  $('#btn-view-graph').on('click', function () {
+    showGameHistoryView('graph');
+  });
+  $('#btn-view-text').on('click', function () {
+    showGameHistoryView('text');
+  });
+
+  // Game History Tab: Navigation Mode
+  $('#btn-navigate-history').on('click', function () {
+    if (isHistoryNavigating) {
+      exitHistoryNavigation(false);
+    } else {
+      enterHistoryNavigation();
+    }
+  });
+  $('#btn-resume-history').on('click', function () {
+    exitHistoryNavigation(true);
+  });
+  $('#btn-cancel-history').on('click', function () {
+    exitHistoryNavigation(false);
+  });
+
   // Move History Panel Actions
   $('#btn-download-pgn').on('click', function () {
     const pgnText = getPgnText();
@@ -2132,10 +2305,13 @@ export async function init() {
     $btn.addClass('active');
     $container.find('#' + targetPaneId).addClass('active');
 
-    if (targetPaneId === 'analytics-eval') {
-      renderEvalGraph();
-    } else if (targetPaneId === 'analytics-moves') {
-      updateInteractiveMoveHistory();
+    if (targetPaneId === 'analytics-history') {
+      // Re-render graph if graph view is active
+      if ($('#btn-view-graph').hasClass('active')) {
+        renderEvalGraph();
+      } else {
+        updateInteractiveMoveHistory();
+      }
     }
   });
 
@@ -2143,7 +2319,7 @@ export async function init() {
   $('#btn-toggle-analytics').on('click', function () {
     const $container = $('.center-analytics-container');
     $container.toggleClass('collapsed');
-    if (!$container.hasClass('collapsed') && $('.analytics-tab-btn[data-tab="analytics-eval"]').hasClass('active')) {
+    if (!$container.hasClass('collapsed') && $('.analytics-tab-btn[data-tab="analytics-history"]').hasClass('active') && $('#btn-view-graph').hasClass('active')) {
       setTimeout(() => renderEvalGraph(), 50);
     }
   });

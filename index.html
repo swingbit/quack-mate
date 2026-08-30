@@ -219,26 +219,47 @@
       <div class="center-analytics-container">
         <div class="analytics-tab-bar">
           <div class="analytics-tabs">
-            <button class="analytics-tab-btn active" data-tab="analytics-eval">Evaluation Graph</button>
+            <button class="analytics-tab-btn active" data-tab="analytics-history">Game History</button>
             <button class="analytics-tab-btn" data-tab="analytics-review">Game Review (Coming soon)</button>
-            <button class="analytics-tab-btn" data-tab="analytics-moves">Move History</button>
           </div>
           <button id="btn-toggle-analytics" class="btn-toggle-analytics" title="Toggle Analytics Panel">▾</button>
         </div>
         <div class="analytics-tab-content">
-          <div id="analytics-eval" class="analytics-tab-pane active">
-            <div id="eval-graph" class="eval-graph"></div>
+          <div id="analytics-history" class="analytics-tab-pane active">
+            <!-- Toolbar: view toggle, nav mode, and exports -->
+            <div class="game-history-toolbar">
+              <div class="history-toolbar-left">
+                <button id="btn-view-graph" class="view-toggle-btn active" title="Show evaluation graph">Graph</button>
+                <button id="btn-view-text" class="view-toggle-btn" title="Show move list">Text</button>
+                <span class="toolbar-separator"></span>
+                <button id="btn-navigate-history" class="btn-navigate-history" title="Browse game history by clicking the evaluation graph">Navigate History</button>
+              </div>
+              <div class="history-toolbar-right">
+                <button id="btn-download-pgn" class="btn-analytics-action" title="Download PGN File">Download PGN</button>
+                <button id="btn-copy-pgn" class="btn-analytics-action" title="Copy PGN text to clipboard">Copy PGN</button>
+                <button id="btn-copy-history" class="btn-analytics-action" title="Copy debug history log (CSV format with nodes, timings, FEN) to clipboard">Copy Debug Log</button>
+              </div>
+            </div>
+            <!-- Graph View (default) -->
+            <div id="game-history-graph-view" class="game-history-view">
+              <div id="eval-graph" class="eval-graph"></div>
+            </div>
+            <!-- Text View (hidden by default) -->
+            <div id="game-history-text-view" class="game-history-view" style="display: none;">
+              <div id="interactive-move-history" class="interactive-move-history">No moves recorded yet.</div>
+            </div>
+            <!-- Navigation Mode Status Bar (hidden by default) -->
+            <div id="nav-mode-bar" class="nav-mode-bar" style="display: none;">
+              <span class="nav-mode-icon">🔍</span>
+              <span class="nav-mode-text">History Navigation — select a node on the graph to review that position</span>
+              <span class="nav-mode-actions">
+                <button id="btn-resume-history" class="btn-nav-action btn-resume-history" disabled>Resume from here</button>
+                <button id="btn-cancel-history" class="btn-nav-action btn-cancel-history">Cancel</button>
+              </span>
+            </div>
           </div>
           <div id="analytics-review" class="analytics-tab-pane">
             <div class="tool-pane-placeholder">Game review and accuracy analysis available post-game.</div>
-          </div>
-          <div id="analytics-moves" class="analytics-tab-pane">
-            <div class="moves-toolbar">
-              <button id="btn-download-pgn" class="btn-analytics-action" title="Download PGN File">Download PGN</button>
-              <button id="btn-copy-pgn" class="btn-analytics-action" title="Copy PGN text to clipboard">Copy PGN</button>
-              <button id="btn-copy-history" class="btn-analytics-action" title="Copy debug history log (CSV format with nodes, timings, FEN) to clipboard">Copy Debug Log</button>
-            </div>
-            <div id="interactive-move-history" class="interactive-move-history">No moves recorded yet.</div>
           </div>
         </div>
       </div>

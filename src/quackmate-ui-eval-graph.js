@@ -168,8 +168,10 @@ function buildEvalTooltipHtml(item, idx, getSanForMove) {
  * `evalHistory` — array of { score, sigma, turn, moveNumber, ... }.
  * `getSanForMove` — callback from the parent module for SAN lookup.
  * `lastFen` — current board FEN (for uncertainty computation).
+ * `onNodeClick` — optional callback(index, evalHistoryItem) fired when a data-point is clicked.
+ * `selectedIndex` — optional index of the currently selected node (shows highlight ring).
  */
-export function renderEvalGraph(evalHistory, getSanForMove, lastFen) {
+export function renderEvalGraph(evalHistory, getSanForMove, lastFen, onNodeClick, selectedIndex) {
     const container = document.getElementById('eval-graph');
     if (!container) return;
 
@@ -269,7 +271,7 @@ export function renderEvalGraph(evalHistory, getSanForMove, lastFen) {
         svg += `<line x1="${padding.left}" y1="${p0.y.toFixed(1)}" x2="${p0.x.toFixed(1)}" y2="${p0.y.toFixed(1)}" stroke="url(#evalLineGrad)" stroke-width="2" stroke-linecap="round"/>`;
     }
 
-    // Data-point dots
+    // Data-point dots (clickable)
     evalHistory.forEach((e, i) => {
         const pt = mainPoints[i];
         const moveNum = Math.ceil(e.moveNumber / 2);
@@ -279,12 +281,20 @@ export function renderEvalGraph(evalHistory, getSanForMove, lastFen) {
         const scoreLabel = cp > 0 ? `+${(cp / 100).toFixed(2)}` : (cp < 0 ? `${(cp / 100).toFixed(2)}` : `0.00`);
         const tooltip = `${plyNotation} (${colorLabel}): ${scoreLabel}`;
         const fillColor = e.turn === 'white' ? '#ffffff' : '#0f172a';
+        const clickableClass = onNodeClick ? 'eval-node-clickable' : '';
 
-        svg += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="3"
+        svg += `<circle class="eval-node ${clickableClass}" data-index="${i}"
+                 cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="3.5"
                  fill="${fillColor}" stroke="#38bdf8" stroke-width="1.5">
                  <title>${tooltip}</title>
                </circle>`;
     });
+
+    // Selected node highlight ring (if any)
+    if (selectedIndex !== undefined && selectedIndex >= 0 && selectedIndex < mainPoints.length) {
+        const sel = mainPoints[selectedIndex];
+        svg += `<circle class="eval-node-selected" cx="${sel.x.toFixed(1)}" cy="${sel.y.toFixed(1)}" r="6" fill="none" stroke="#fbbf24" stroke-width="2.5" stroke-dasharray="0" />`;
+    }
 
     // X-axis labels
     const maxTicks = 12;
@@ -313,10 +323,10 @@ export function renderEvalGraph(evalHistory, getSanForMove, lastFen) {
     svg += '<div id="eval-tooltip" class="eval-tooltip" style="display: none;"></div>';
     container.innerHTML = svg;
 
-    attachEvalGraphEvents(container, xScale, yScale, width, height, scores, evalHistory, getSanForMove);
+    attachEvalGraphEvents(container, xScale, yScale, width, height, scores, evalHistory, getSanForMove, onNodeClick);
 }
 
-function attachEvalGraphEvents(container, xScale, yScale, width, height, scores, evalHistory, getSanForMove) {
+function attachEvalGraphEvents(container, xScale, yScale, width, height, scores, evalHistory, getSanForMove, onNodeClick) {
     const svg = container.querySelector('.eval-graph-svg');
     const tooltip = container.querySelector('#eval-tooltip');
     const hoverGroup = container.querySelector('#eval-hover-group');
@@ -325,6 +335,20 @@ function attachEvalGraphEvents(container, xScale, yScale, width, height, scores,
     const hoverHalo = container.querySelector('#eval-hover-halo');
 
     if (!svg || !tooltip || !hoverGroup || evalHistory.length === 0) return;
+
+    // Click handler on clickable nodes
+    if (onNodeClick) {
+        svg.querySelectorAll('.eval-node-clickable').forEach(el => {
+            el.style.cursor = 'pointer';
+            el.addEventListener('click', (evt) => {
+                evt.stopPropagation();
+                const idx = parseInt(el.getAttribute('data-index'), 10);
+                if (!isNaN(idx) && idx >= 0 && idx < evalHistory.length) {
+                    onNodeClick(idx, evalHistory[idx]);
+                }
+            });
+        });
+    }
 
     svg.onmousemove = (evt) => {
         if (evalHistory.length === 0) return;
