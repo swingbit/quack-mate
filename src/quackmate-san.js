@@ -5,9 +5,9 @@
  * suitable for PGN export.
  */
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Internal helpers – FEN -> board
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 const COLS = 'abcdefgh';
 
@@ -46,9 +46,9 @@ function parseFen(fen) {
   return { board, activeColor: parts[1] || 'w' };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Attack detection (used by isKingInCheck and sanFromMove disambiguation)
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 function isWhitePiece(p) { return p && p === p.toUpperCase(); }
 
@@ -142,9 +142,9 @@ function kingInCheck(board, activeColor) {
   return false;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Public API
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 /**
  * Is the king of the side whose turn it is (active colour in the FEN) in check?
@@ -173,13 +173,13 @@ export function sanFromMove(fenBefore, fenAfter, parsed, { isCheck = false, isCh
   const piece = parsed.piece.toUpperCase();
   const isWhiteMove = isWhitePiece(board[fr][fc]);
 
-  // ── Special: castling ──────────────────────────────────────────────────
+  // -- Special: castling --------------------------------------------------
   if (piece === 'K' && Math.abs(tc - fc) === 2) {
     const suffix = isCheckmate ? '#' : isCheck ? '+' : '';
     return tc > fc ? `O-O${suffix}` : `O-O-O${suffix}`;
   }
 
-  // ── Determine capture ──────────────────────────────────────────────────
+  // -- Determine capture --------------------------------------------------
   let isCapture = board[tr][tc] !== null;
 
   // En-passant: pawn moves diagonally to an empty square
@@ -187,7 +187,7 @@ export function sanFromMove(fenBefore, fenAfter, parsed, { isCheck = false, isCh
     isCapture = true;
   }
 
-  // ── Determine promotion piece (from fenAfter) ──────────────────────────
+  // -- Determine promotion piece (from fenAfter) --------------------------
   let promoPiece = null;
   if (piece === 'P') {
     const promoRank = isWhiteMove ? 0 : 7;
@@ -198,7 +198,7 @@ export function sanFromMove(fenBefore, fenAfter, parsed, { isCheck = false, isCh
     }
   }
 
-  // ── Build the core move string ─────────────────────────────────────────
+  // -- Build the core move string -----------------------------------------
   let san = '';
 
   if (piece === 'P') {
@@ -240,11 +240,11 @@ export function sanFromMove(fenBefore, fenAfter, parsed, { isCheck = false, isCh
     san += parsed.to;
   }
 
-  // ── Promotion suffix ───────────────────────────────────────────────────
+  // -- Promotion suffix ---------------------------------------------------
   if (promoPiece && promoPiece !== 'P' && promoPiece !== 'K')
     san += '=' + promoPiece;
 
-  // ── Check / mate suffixes ──────────────────────────────────────────────
+  // -- Check / mate suffixes ----------------------------------------------
   if (isCheckmate) san += '#';
   else if (isCheck)   san += '+';
 
