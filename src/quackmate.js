@@ -1388,21 +1388,25 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                      AND st.id NOT IN (SELECT id FROM bound_only_nodes)
                  `);
                  if (candidates.length > 0) {
+                      // Sort candidates by static_eval (positional quality / PST), then from_sq, to_sq, promo_piece
+                      candidates.sort((a, b) => {
+                          if (a.static_eval !== b.static_eval) {
+                              return isWhiteTurn
+                                  ? b.static_eval - a.static_eval
+                                  : a.static_eval - b.static_eval;
+                          }
+                          if (a.from_sq !== b.from_sq) return a.from_sq - b.from_sq;
+                          if (a.to_sq !== b.to_sq) return a.to_sq - b.to_sq;
+                          return (b.promo_piece || 0) - (a.promo_piece || 0);
+                      });
+
                       let best;
-                      if (options.randomize && candidates.length > 1) {
-                           best = candidates[Math.floor(Math.random() * candidates.length)];
+                      if (options.randomize) {
+                           // Only randomize among moves that share both the top minimax_eval AND top static_eval
+                           const bestStatic = candidates[0].static_eval;
+                           const topStaticCandidates = candidates.filter(c => c.static_eval === bestStatic);
+                           best = topStaticCandidates[Math.floor(Math.random() * topStaticCandidates.length)];
                       } else {
-                           // Deterministic tie-breaking: sort by static_eval, then by from_sq, to_sq, promo_piece
-                           candidates.sort((a, b) => {
-                               if (a.static_eval !== b.static_eval) {
-                                   return isWhiteTurn
-                                       ? b.static_eval - a.static_eval
-                                       : a.static_eval - b.static_eval;
-                               }
-                               if (a.from_sq !== b.from_sq) return a.from_sq - b.from_sq;
-                               if (a.to_sq !== b.to_sq) return a.to_sq - b.to_sq;
-                               return (b.promo_piece || 0) - (a.promo_piece || 0);
-                           });
                            best = candidates[0];
                       }
                       currentBestScore = Number(best.minimax_eval);

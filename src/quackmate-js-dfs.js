@@ -1064,9 +1064,16 @@ export async function find_best_move(fen, options) {
             if (score > alpha) alpha = score;
         }
 
-        currentBestMove = options.randomize && candidates.length > 1
-            ? candidates[Math.floor(Math.random() * candidates.length)]
-            : candidates[0];
+        if (candidates.length > 1) {
+            candidates.sort((a, b) => (b.score || 0) - (a.score || 0));
+            const bestScore = candidates[0].score || 0;
+            const topCandidates = candidates.filter(c => (c.score || 0) === bestScore);
+            currentBestMove = options.randomize && topCandidates.length > 1
+                ? topCandidates[Math.floor(Math.random() * topCandidates.length)]
+                : candidates[0];
+        } else {
+            currentBestMove = candidates[0];
+        }
         currentBestScore = bestDScore;
         if (useTT) transpositionTable.set(hash, { bestMove: currentBestMove, score: currentBestScore, depth: d, bound: BOUND_EXACT });
     }
