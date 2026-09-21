@@ -37,6 +37,7 @@ import { getIsKingInCheckSQL, getGivesCheckSQL, getMovesSelectSQL, captureLogicF
 
 export function getMergeTT_SQL(depth) {
     return `
+        /* @phase: Transposition Table | @title: Transposition Table Upsert | @key: tt_merge_upsert */
         /* Identify best moves efficiently */
         DROP TABLE IF EXISTS tt_best_moves;
         CREATE TEMPORARY TABLE tt_best_moves AS
@@ -545,6 +546,7 @@ export function getBatchUpdateKillersSQL(maxDepth) {
     // Updates Killer Moves (Slots 0 and 1) for ALL depths in the current search tree.
     // "Success" = Matching parent score for a quiet move.
     return `
+        /* @phase: Pruning & Probes | @title: Killer Move Heuristic Update | @key: prune_killer_moves_update */
         INSERT INTO killer_moves (depth, slot, from_sq, to_sq)
         WITH top_moves AS (
            SELECT s.depth, m.from_sq, m.to_sq, COUNT(*) as frequency

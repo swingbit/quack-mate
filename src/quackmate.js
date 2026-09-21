@@ -55,6 +55,7 @@ import {
     getInsertRestParentNodesSQL
 } from './sql/search.js';
 
+import { telemetry } from './quackmate-telemetry.js';
 
 import {
     getBitIndexSQL,
@@ -535,11 +536,13 @@ async function execute_recursive_search(db, opts) {
     if (!gameState) throw new Error("execute_recursive_search: game_state is empty!");
     
     const isWhiteTurn = Number(gameState.active_turn) === TURNS.WHITE;
+    const side = isWhiteTurn ? 'white' : 'black';
     const depth = opts.maxDepth;
     const alpha = opts.alpha !== undefined ? opts.alpha : -SCORE_INFINITE;
     const beta = opts.beta !== undefined ? opts.beta : SCORE_INFINITE;
     let totalNodes = 0;
 
+    telemetry.startSession(side, await toFen(db), depth, opts);
 
     const recursiveQuery = getRecursiveSearchQuery(depth, isWhiteTurn, alpha, beta, opts.returnAllMoves);
     const allMovesResult = await db.query(recursiveQuery);
@@ -866,6 +869,9 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
     } catch(e) { console.warn("Could not set PRAGMA:", e); }
 
     const isWhiteTurn = fromFEN.split(' ')[1] === 'w'; // Basic check, better to use state
+    const side = isWhiteTurn ? 'white' : 'black';
+
+    telemetry.startSession(side, fromFEN, depth, options);
 
     // Profiling Stats
     const stats = {
@@ -1005,6 +1011,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
 
     // --- ITERATIVE DEEPENING LOOP ---
     for (let id_depth = 1; id_depth <= depth; id_depth++) {
+        telemetry.setDepthPly(side, id_depth);
         pAlpha = -SCORE_INFINITE;
         pBeta = SCORE_INFINITE;
 
@@ -1331,16 +1338,6 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
                     await run_full_scoring_pass(id_depth, options.maxDepthQS > 0 && id_depth === depth);
                     stats.timing.scoring += (performance.now() - tScoreStart);
                     
-                    if (options.useHistory) {
-                        // Update History Heuristic
-                        await db.query(getUpdateHistorySQL(id_depth));
-                    }
-                    
-                    if (options.useKillers) {
-                        // Update Killer Heuristic (Batch)
-                        await db.query(getBatchUpdateKillersSQL(id_depth));
-                    }
-                    
                     // Overhead Check
                     const measured = (stats.timing.rest_prep - sPrep) + (stats.timing.rest_expand - sExpand) + (stats.timing.rest_deep - sDeep);
                     stats.timing.rest_overhead += Math.max(0, (performance.now() - tGroupStart) - measured);
@@ -1351,6 +1348,16 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             
             // Ensure root (Depth 0) is updated from children (Depth 1)
             await run_full_scoring_pass(1, options.maxDepthQS > 0 && id_depth === depth && id_depth === 1);
+
+            if (options.useHistory) {
+                // --- END OF DEPTH: UPDATE HISTORY ---
+                await db.query(getUpdateHistorySQL(id_depth));
+            }
+
+            if (options.useKillers) {
+                // --- END OF DEPTH: UPDATE KILLERS ---
+                await db.query(getBatchUpdateKillersSQL(id_depth));
+            }
 
             if (options.useTT) {
                 // --- END OF DEPTH: UPDATE TT ---
@@ -1483,6 +1490,7 @@ export async function find_best_move_batched_pvs(db, fromFEN, options, callbacks
             };
         });
     }
-    
+
+    telemetry.finishSession(side, result);
     return result;
 }

@@ -158,18 +158,11 @@
       <div class="tool-panel-container" id="tool-panel-white">
         <div class="tool-tab-bar">
           <div class="tool-tabs" data-side="white">
-            <button class="tool-tab-btn active" data-tab="white-stats">Search Stats</button>
-            <button class="tool-tab-btn" data-tab="white-sql">SQL Log</button>
-            <button class="tool-tab-btn" data-tab="white-plan">Query Plan (Coming soon)</button>
-            <button class="tool-tab-btn" data-tab="white-db">Live DB (Coming soon)</button>
+            <button class="tool-tab-btn active" data-tab="white-stats" title="Bird's-eye view of the whole move search - phase timings & totals">Game Overview</button>
+            <button class="tool-tab-btn" data-tab="white-profiling" title="Zoom into the cost centers of the last profiled move. Requires profiling to be ON." style="display: none;">Profiling</button>
           </div>
           <div class="console-controls">
-            <div class="font-size-stepper">
-              <button class="btn-font-size btn-font-dec" title="Decrease Font Size">−</button>
-              <span class="font-size-label">11px</span>
-              <button class="btn-font-size btn-font-inc" title="Increase Font Size">+</button>
-            </div>
-            <button class="btn-copy-console" data-target="white-search-stats" title="Copy Output">Copy</button>
+            <button class="btn-toggle-profiling" data-side="white" title="When ON, every SQL statement in this side's NEXT move is profiled with real, single-execution DuckDB timings (adds overhead while active). Turn OFF when done to return to full speed.">⚡ Profiling: OFF</button>
             <button class="btn-toggle-card btn-toggle-tool-panel" data-target="tool-panel-white" title="Toggle Tool Panel">▾</button>
           </div>
         </div>
@@ -177,15 +170,17 @@
           <div id="white-stats" class="tool-tab-pane active">
             <div id="white-search-stats" class="sql-stats-output console-output"></div>
           </div>
-          <div id="white-sql" class="tool-tab-pane">
-            <div id="white-console" class="console-output"></div>
+          <div id="white-profiling" class="tool-tab-pane">
+            <div id="white-profiling-root" class="profiling-root"></div>
           </div>
-          <div id="white-plan" class="tool-tab-pane">
-            <div id="white-query-plan" class="tool-pane-placeholder">DuckDB query execution plan will appear here during search.</div>
+        </div>
+        <!-- Tables slide-over drawer -->
+        <div id="white-tables-drawer" class="tables-drawer" style="display: none;">
+          <div class="tables-drawer-header">
+            <span class="tables-drawer-title">Table Inspector</span>
+            <button class="btn-close-tables-drawer" title="Close">✕</button>
           </div>
-          <div id="white-db" class="tool-tab-pane">
-            <div id="white-live-db" class="tool-pane-placeholder">Relational table inspector (search_tree, TT, etc.).</div>
-          </div>
+          <div id="white-tables-drawer-body" class="tables-drawer-body"></div>
         </div>
       </div>
     </div>
@@ -381,18 +376,11 @@
       <div class="tool-panel-container" id="tool-panel-black">
         <div class="tool-tab-bar">
           <div class="tool-tabs" data-side="black">
-            <button class="tool-tab-btn active" data-tab="black-stats">Search Stats</button>
-            <button class="tool-tab-btn" data-tab="black-sql">SQL Log</button>
-            <button class="tool-tab-btn" data-tab="black-plan">Query Plan (Coming soon)</button>
-            <button class="tool-tab-btn" data-tab="black-db">Live DB (Coming soon)</button>
+            <button class="tool-tab-btn active" data-tab="black-stats" title="Bird's-eye view of the whole move search - phase timings & totals">Game Overview</button>
+            <button class="tool-tab-btn" data-tab="black-profiling" title="Zoom into the cost centers of the last profiled move. Requires profiling to be ON." style="display: none;">Profiling</button>
           </div>
           <div class="console-controls">
-            <div class="font-size-stepper">
-              <button class="btn-font-size btn-font-dec" title="Decrease Font Size">−</button>
-              <span class="font-size-label">11px</span>
-              <button class="btn-font-size btn-font-inc" title="Increase Font Size">+</button>
-            </div>
-            <button class="btn-copy-console" data-target="black-search-stats" title="Copy Output">Copy</button>
+            <button class="btn-toggle-profiling" data-side="black" title="When ON, every SQL statement in this side's NEXT move is profiled with real, single-execution DuckDB timings (adds overhead while active). Turn OFF when done to return to full speed.">⚡ Profiling: OFF</button>
             <button class="btn-toggle-card btn-toggle-tool-panel" data-target="tool-panel-black" title="Toggle Tool Panel">▾</button>
           </div>
         </div>
@@ -400,15 +388,17 @@
           <div id="black-stats" class="tool-tab-pane active">
             <div id="black-search-stats" class="sql-stats-output console-output"></div>
           </div>
-          <div id="black-sql" class="tool-tab-pane">
-            <div id="black-console" class="console-output"></div>
+          <div id="black-profiling" class="tool-tab-pane">
+            <div id="black-profiling-root" class="profiling-root"></div>
           </div>
-          <div id="black-plan" class="tool-tab-pane">
-            <div id="black-query-plan" class="tool-pane-placeholder">DuckDB query execution plan will appear here during search.</div>
+        </div>
+        <!-- Tables slide-over drawer -->
+        <div id="black-tables-drawer" class="tables-drawer" style="display: none;">
+          <div class="tables-drawer-header">
+            <span class="tables-drawer-title">Table Inspector</span>
+            <button class="btn-close-tables-drawer" title="Close">✕</button>
           </div>
-          <div id="black-db" class="tool-tab-pane">
-            <div id="black-live-db" class="tool-pane-placeholder">Relational table inspector (search_tree, TT, etc.).</div>
-          </div>
+          <div id="black-tables-drawer-body" class="tables-drawer-body"></div>
         </div>
       </div>
     </div>

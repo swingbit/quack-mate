@@ -831,6 +831,7 @@ export function getGenerateRankedRawMovesSQL(sourceTable, targetTable, batchSize
     const lmpFilter = options.useLMP ? `(sq.depth = 0 OR sq.row_rank <= (8 + (${maxDepth} - sq.depth) * 3) OR sq.is_capture = 1 OR sq.is_promo = 1 OR sq.is_castle = 1 OR sq.is_check = 1 OR sq.gives_check = 1)` : '1=1';
     
     return `
+    /* @phase: Move Generation | @title: Generate & Rank Candidate Moves | @key: movegen_ranked_raw_moves */
     -- 1. Create temporary search space
     DROP TABLE IF EXISTS search_space;
     CREATE TEMPORARY TABLE search_space AS

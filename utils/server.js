@@ -11,7 +11,7 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import * as duckdbEngine from '../src/quackmate-node.js';
-
+import { telemetry } from '../src/quackmate-telemetry.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -49,12 +49,12 @@ async function initEngines() {
 
 
     console.log("Initializing Player White Engine...");
-    const whiteEngine = new duckdbEngine.EngineInstance();
+    const whiteEngine = new duckdbEngine.EngineInstance('white');
     await whiteEngine.init();
     engines['player_white'] = whiteEngine;
 
     console.log("Initializing Player Black Engine...");
-    const blackEngine = new duckdbEngine.EngineInstance();
+    const blackEngine = new duckdbEngine.EngineInstance('black');
     await blackEngine.init();
     engines['player_black'] = blackEngine;
 
@@ -104,8 +104,52 @@ async function executeWithLogging(req, fn) {
 app.post('/:engineId/best_move', getEngine, async (req, res) => {
     try {
         const { fen, options } = req.body;
+        const color = (fen && fen.split(' ')[1] === 'w') ? 'white' : 'black';
+        req.engine.playerColor = color;
         const result = await executeWithLogging(req, () => req.engine.find_best_move(fen, options));
-        res.json(result);
+        const session = telemetry.getSession(color);
+
+        let serializableSession = null;
+        if (session) {
+            const serializableDepths = {};
+            for (const [ply, dData] of Object.entries(session.depths || {})) {
+                serializableDepths[ply] = {
+                    ...dData,
+                    templates: Array.from(dData.templates ? dData.templates.entries() : [])
+                };
+            }
+            serializableSession = {
+                ...session,
+                templates: Array.from(session.templates.entries()),
+                depths: serializableDepths,
+                // "Live Tap" captures (templateKey -> [{sql, rawExplainRows, timestamp}]),
+                // serialized as a [key, value][] array so the client can rebuild the Map.
+                capturedPlans: Array.from(session.capturedPlans ? session.capturedPlans.entries() : [])
+            };
+        }
+
+        res.setHeader('Content-Type', 'application/json');
+        res.send(JSON.stringify({ ...result, telemetry: serializableSession }, (k, v) =>
+            typeof v === 'bigint' ? v.toString() : v
+        ));
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Toggle real, on-demand query profiling for a player's engine. While
+// enabled, EVERY statement executed by subsequent find_best_move() calls is
+// profiled via a real single execution (no duplication, no query
+// rewriting - see quackmate-telemetry.js/quackmate-node.js) and returned in
+// the /best_move response's telemetry.capturedPlans. This intentionally
+// adds overhead while active, so it's opt-in.
+app.post('/:engineId/set_profiling', getEngine, async (req, res) => {
+    try {
+        const { enabled } = req.body;
+        const color = req.params.engineId === 'player_black' ? 'black' : 'white';
+        telemetry.setProfilingEnabled(color, !!enabled);
+        res.json({ ok: true, enabled: !!enabled });
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: e.message });
@@ -148,6 +192,21 @@ app.post('/:engineId/reset_game', getEngine, async (req, res) => {
             console.warn(`Engine ${req.params.engineId} does not support resetGame`);
             res.json({ result: "ok", warning: "reset_not_supported" });
         }
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Run Ad-hoc SQL Query (Plan Explain, Table Inspector)
+app.post('/:engineId/query', getEngine, async (req, res) => {
+    try {
+        const { sql } = req.body;
+        const result = await req.engine.query(sql);
+        res.setHeader('Content-Type', 'application/json');
+        res.send(JSON.stringify({ result }, (key, value) =>
+            typeof value === 'bigint' ? value.toString() : value
+        ));
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: e.message });

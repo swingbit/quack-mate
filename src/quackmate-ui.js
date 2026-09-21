@@ -10,6 +10,7 @@ import {
   getDuckDBThreads,
   setQueryLogger,
   DuckDBWasmEngine,
+  defaultEngine,
   DEFAULT_OPTIONS,
   RESTRICTED_MODE_LIMITS
 } from './quackmate-wasm.js';
@@ -18,6 +19,11 @@ import { TURNS, SCORE_MATE_THRESHOLD } from './quackmate-common.js';
 import { sanFromMove, isKingInCheck } from './quackmate-san.js';
 import { GameState, find_best_move as find_best_move_js } from './quackmate-js-dfs.js';
 import { renderEvalGraph as renderEvalGraphSVG } from './quackmate-ui-eval-graph.js';
+import { QueryInspectorUI } from './quackmate-ui-inspector.js';
+import { telemetry } from './quackmate-telemetry.js';
+
+let whiteInspector = null;
+let blackInspector = null;
 
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -35,35 +41,6 @@ let $engineStatus = $('#engine-status')
 
 // Evaluation history for the live graph
 let evalHistory = [];
-
-// Per-tab console font size memory (persisted in localStorage)
-const DEFAULT_FONT_SIZE = 11;
-let tabFontSizes = {
-  'white-stats': DEFAULT_FONT_SIZE + 2,
-  'white-sql': DEFAULT_FONT_SIZE,
-  'white-plan': DEFAULT_FONT_SIZE,
-  'white-db': DEFAULT_FONT_SIZE,
-  'black-stats': DEFAULT_FONT_SIZE + 2,
-  'black-sql': DEFAULT_FONT_SIZE,
-  'black-plan': DEFAULT_FONT_SIZE,
-  'black-db': DEFAULT_FONT_SIZE
-};
-
-try {
-  const saved = localStorage.getItem('quackmate_tab_font_sizes');
-  if (saved) tabFontSizes = { ...tabFontSizes, ...JSON.parse(saved) };
-} catch(e) {}
-
-function applyTabFontSize(paneId) {
-  const size = tabFontSizes[paneId] || DEFAULT_FONT_SIZE;
-  const $pane = $('#' + paneId);
-  $pane.find('.console-output, .sql-stats-output, .tool-pane-placeholder').css('font-size', size + 'px');
-
-  const $container = $pane.closest('.tool-panel-container');
-  if ($pane.hasClass('active')) {
-    $container.find('.font-size-label').text(size + 'px');
-  }
-}
 
 // Log Streamer Utility
 class LogStreamer {
@@ -116,6 +93,7 @@ class WasmEngineAdapter {
   async checkEndGame(fen) { return this.engine.checkEndGame(fen); }
   async resetGame() { if (this.engine.resetGame) await this.engine.resetGame(); }
   async getVersion() { return this.engine.getVersion(); }
+  async query(sql) { return this.engine.query(sql); }
 }
 
 class StandardEngineAdapter {
@@ -182,6 +160,10 @@ class StandardEngineAdapter {
     async getVersion() {
         return "";
     }
+
+    async query(sql) {
+        return defaultEngine.query(sql);
+    }
 }
 
 class RemoteEngine {
@@ -207,6 +189,8 @@ class RemoteEngine {
 
   async findBestMove(fen, options) {
     const start = performance.now();
+    const color = (fen.split(' ')[1] === 'w') ? 'white' : 'black';
+
     const response = await fetch(`${this.baseUrl}/${this.engineId}/best_move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -216,6 +200,19 @@ class RemoteEngine {
     const data = await response.json();
     this.log(data.logs);
     data.duration = performance.now() - start;
+
+    if (data.telemetry) {
+      telemetry.importSession(color, data.telemetry);
+    } else {
+      telemetry.startSession(color, fen, options.maxDepth || 3, options);
+      if (data.logs && Array.isArray(data.logs)) {
+        for (const sql of data.logs) {
+          telemetry.recordQuery(color, sql, 0.1, 1);
+        }
+      }
+      telemetry.finishSession(color, data);
+    }
+
     return data; // { fen, nodes, move, logs, duration }
   }
 
@@ -283,6 +280,41 @@ class RemoteEngine {
     const data = await response.json();
     return data.version;
   }
+
+  /**
+   * Toggles real, on-demand query profiling on the REMOTE server's own
+   * telemetry singleton (a separate process from the browser, so
+   * client-side telemetry.setProfilingEnabled() alone would have no effect
+   * here). While enabled, EVERY statement in subsequent findBestMove()
+   * calls is profiled server-side via a real single execution, returned
+   * inline in that call's telemetry.capturedPlans.
+   */
+  async setProfiling(enabled) {
+    const response = await fetch(`${this.baseUrl}/${this.engineId}/set_profiling`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: !!enabled })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    return response.json();
+  }
+
+  async query(sql) {
+    try {
+      const response = await fetch(`${this.baseUrl}/${this.engineId}/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.result;
+      }
+    } catch (e) {
+      console.warn("Remote query failed, falling back to local DuckDB WASM engine:", e);
+    }
+    return defaultEngine.query(sql);
+  }
 }
 
 
@@ -311,50 +343,9 @@ function logToPlayerConsole(color, sql) {
 
 function adaptiveDripFlush(color) {
     const buffer = consoleBuffers[color];
-    if (!buffer || buffer.length === 0) return;
-    
-    const state = consoleStates[color];
-    if (state.isMuted) {
+    if (buffer) {
         buffer.length = 0;
-        return;
     }
-
-    const $console = $(`#${color}-console`);
-    const el = $console[0];
-
-    // DRIP RATE: We keep it small to maintain the "streaming" feel.
-    // If the buffer gets huge, we speed up slightly, but never "dump" everything.
-    let dripCount = 2; 
-    if (buffer.length > 500) dripCount = 10;
-    else if (buffer.length > 100) dripCount = 5;
-    
-    const subset = buffer.splice(0, dripCount);
-    
-    const fragment = document.createDocumentFragment();
-    let hasNewElements = false;
-
-    subset.forEach(sql => {
-        const normalizedSql = sql.trim();
-        if (normalizedSql === state.lastSql && state.$lastDiv) {
-            state.count++;
-            state.$lastDiv.text(`${normalizedSql} (x${state.count})`);
-        } else {
-            state.lastSql = normalizedSql;
-            state.count = 1;
-            const div = document.createElement('div');
-            div.textContent = normalizedSql;
-            state.$lastDiv = $(div);
-            fragment.appendChild(div);
-            hasNewElements = true;
-        }
-    });
-    
-    if (hasNewElements) {
-        el.appendChild(fragment);
-    }
-    
-    // Keep the latest line in view
-    el.scrollTop = el.scrollHeight;
 }
 
 function clearPlayerConsole(color) {
@@ -1346,6 +1337,31 @@ function initUI() {
   // Init button states
   updateStatus('white');
   updateStatus('black');
+
+  // Initialize the per-side Query Inspectors (Game Overview + Profiling).
+  //
+  // Two different engine getters are passed in:
+  //   - `engineGetter` (players[color].engine || defaultEngine): a cheap,
+  //     LAZY lookup used for general tab rendering (Plan/Table tabs) - it's
+  //     fine if this falls back to `defaultEngine` before this side's first
+  //     move, since those tabs only need *some* engine to run read-only
+  //     EXPLAIN/SELECT queries against.
+  //   - `ensureEngineGetter` (getOrInitEngine): used ONLY by the "⚡
+  //     Profiling" toggle, which needs the SAME engine instance that will
+  //     actually play this side's next move, eagerly created if necessary.
+  //     Without this, toggling profiling before this side's first move
+  //     would sync against `defaultEngine` (a bare local DuckDBWasmEngine
+  //     with no setProfiling() method) instead of the real remote engine,
+  //     silently leaving the SERVER's telemetry singleton never toggled.
+  whiteInspector = new QueryInspectorUI('white', () => {
+    return players.white.engine || defaultEngine;
+  }, () => players.white, () => getOrInitEngine('white'));
+  whiteInspector.init();
+
+  blackInspector = new QueryInspectorUI('black', () => {
+    return players.black.engine || defaultEngine;
+  }, () => players.black, () => getOrInitEngine('black'));
+  blackInspector.init();
 }
 
 
@@ -1551,12 +1567,9 @@ function formatSearchStatsTable(turn, profiling, playerState) {
 }
 
 function updateStatsUI(turn, profiling) {
-  const p = players[turn];
-  const $searchStats = $(`#${turn}-search-stats`);
-
-  if ($searchStats.length) {
-    const tableHtml = formatSearchStatsTable(turn, profiling, p);
-    $searchStats.html(tableHtml);
+  const inspector = turn === 'white' ? whiteInspector : blackInspector;
+  if (inspector) {
+    inspector.refreshActiveViews();
   }
 }
 
@@ -1906,8 +1919,10 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
   // Hook up logger to human console
   const color = turn;
   clearPlayerConsole(color); // Clear previous logs
+  telemetry.startSession(color, last_fen, 1, {});
   setQueryLogger((sql) => {
     logToPlayerConsole(color, sql);
+    telemetry.recordQuery(color, sql, 0.5, 1);
   });
 
   if (isPromotion) {
@@ -1941,6 +1956,7 @@ async function onDrop(source, target, piece, newPos, oldPos, orientation) {
   }
 
   setQueryLogger(null); // Detach logger
+  telemetry.finishSession(color, { reply });
 
   console.log(`[DEBUG] try_apply_move reply:`, reply);
 
@@ -2256,58 +2272,6 @@ export async function init() {
     });
   });
 
-  // Console Copy Buttons (copies active tab output)
-  $('.btn-copy-console').on('click', function (e) {
-    e.stopPropagation();
-    const $container = $(this).closest('.tool-panel-container');
-    const $activePane = $container.find('.tool-tab-pane.active .console-output');
-    const text = $activePane.text();
-    if (!text || text.trim() === "") return;
-
-    navigator.clipboard.writeText(text).then(() => {
-      const $btn = $(this);
-      const originalText = $btn.text();
-      $btn.text("Copied!");
-      setTimeout(() => $btn.text(originalText), 1500);
-    }).catch(err => {
-      console.error('Failed to copy console: ', err);
-    });
-  });
-
-  // Font Size Decrement (-)
-  $('.btn-font-dec').on('click', function (e) {
-    e.stopPropagation();
-    const $container = $(this).closest('.tool-panel-container');
-    const $activePane = $container.find('.tool-tab-pane.active');
-    const paneId = $activePane.attr('id');
-    if (!paneId) return;
-
-    let currentSize = tabFontSizes[paneId] || DEFAULT_FONT_SIZE;
-    if (currentSize > 7) {
-      currentSize--;
-      tabFontSizes[paneId] = currentSize;
-      applyTabFontSize(paneId);
-      try { localStorage.setItem('quackmate_tab_font_sizes', JSON.stringify(tabFontSizes)); } catch(e) {}
-    }
-  });
-
-  // Font Size Increment (+)
-  $('.btn-font-inc').on('click', function (e) {
-    e.stopPropagation();
-    const $container = $(this).closest('.tool-panel-container');
-    const $activePane = $container.find('.tool-tab-pane.active');
-    const paneId = $activePane.attr('id');
-    if (!paneId) return;
-
-    let currentSize = tabFontSizes[paneId] || DEFAULT_FONT_SIZE;
-    if (currentSize < 24) {
-      currentSize++;
-      tabFontSizes[paneId] = currentSize;
-      applyTabFontSize(paneId);
-      try { localStorage.setItem('quackmate_tab_font_sizes', JSON.stringify(tabFontSizes)); } catch(e) {}
-    }
-  });
-
   // Side Tool Tabs (White & Black)
   $('.tool-tab-btn').on('click', function () {
     const $btn = $(this);
@@ -2319,7 +2283,6 @@ export async function init() {
 
     $btn.addClass('active');
     $container.find('#' + targetPaneId).addClass('active');
-    applyTabFontSize(targetPaneId);
   });
 
   // Center Analytics Tabs
@@ -2368,11 +2331,6 @@ export async function init() {
     e.stopPropagation();
     const targetId = $(this).data('target');
     $('#' + targetId).toggleClass('collapsed');
-  });
-
-  // Apply saved/default font sizes to all console panes
-  Object.keys(tabFontSizes).forEach(paneId => {
-    applyTabFontSize(paneId);
   });
 
   renderEvalGraph();

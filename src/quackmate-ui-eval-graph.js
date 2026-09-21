@@ -149,8 +149,7 @@ function buildEvalTooltipHtml(item, idx, getSanForMove) {
     const sigmaPawn = ((item.sigma || 0) / 100).toFixed(2);
     const depthLabel = item.depth ? `depth ${item.depth}` : 'static';
 
-    return `
-        <div style="font-weight: 600; font-size: 11px; margin-bottom: 2px; color: #f8fafc; display: flex; justify-content: space-between; gap: 12px;">
+    return `<div style="font-weight: 600; font-size: 11px; margin-bottom: 2px; color: #f8fafc; display: flex; justify-content: space-between; gap: 12px;">
             <span>${plyText}</span>
             <span style="color: #64748b; font-size: 10px; text-transform: capitalize;">${item.turn}</span>
         </div>
@@ -160,7 +159,7 @@ function buildEvalTooltipHtml(item, idx, getSanForMove) {
             <span style="opacity: 0.4;">•</span>
             <span>±${sigmaPawn}p (${depthLabel})</span>
         </div>
-    `;
+    `
 }
 
 /**

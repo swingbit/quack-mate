@@ -5,6 +5,21 @@
  * rules for the browser-based UI.
  */
 
+:root {
+  /* Warm surface tints echoing the board's light/dark brown palette.
+     --surface is the lightest pane/card wash;
+     the slightly deeper --surface-strong is used for pane headers,
+     hovers and collapse fills.
+  */
+  --surface: #FEFCF6;
+  --surface-strong: #F9F5EA;
+  /* Warm border tones matching the surfaces above: --border for the common
+     hairline borders and hover fills, --border-strong for dashed/emphasised
+     outlines. */
+  --border: #E7E0CC;
+  --border-strong: #D6CDB2;
+}
+
 body {
   color: #333;
   font-family: 'Open Sans', arial, sans-serif;
@@ -88,9 +103,10 @@ input[type="number"].config-input {
   min-height: 160px;
   display: flex;
   flex-direction: column;
-  border: 1px solid #333;
-  border-radius: 4px;
-  background: #1e1e1e;
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
   overflow: hidden;
   transition: flex 0.2s ease, min-height 0.2s ease;
 }
@@ -112,24 +128,25 @@ input[type="number"].config-input {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #2b2b2b;
-  border-bottom: 1px solid #3a3a3a;
+  background: var(--surface-strong);
+  border-bottom: 1px solid var(--border);
   padding: 0 6px;
-  height: 28px;
+  height: 32px;
 }
 
 .tool-tabs {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   height: 100%;
+  align-items: center;
 }
 
 .tool-tab-btn {
   background: transparent;
-  color: #999;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0 10px;
+  color: #64748B;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 10px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -139,14 +156,14 @@ input[type="number"].config-input {
 }
 
 .tool-tab-btn:hover {
-  color: #eee;
-  background: rgba(255, 255, 255, 0.04);
+  color: #0F172A;
+  background: rgba(15, 23, 42, 0.05);
 }
 
 .tool-tab-btn.active {
-  color: #fff;
-  border-bottom: 2px solid #3498db;
-  background: #1e1e1e;
+  color: #FFFFFF;
+  background: #2563EB;
+  border-color: #2563EB;
 }
 
 .tool-tab-content {
@@ -171,7 +188,7 @@ input[type="number"].config-input {
 
 .tool-pane-placeholder {
   padding: 24px 16px;
-  color: #777;
+  color: #64748B;
   font-size: 11px;
   text-align: center;
   font-style: italic;
@@ -185,14 +202,14 @@ input[type="number"].config-input {
   padding: 8px 10px;
   white-space: pre-wrap;
   word-break: break-all;
-  background: #1e1e1e;
-  color: #eee;
+  background: var(--surface);
+  color: #334155;
   font-family: 'Courier New', Courier, monospace;
   font-size: 11px;
 }
 
 .console-output div {
-  margin-bottom: 1.2em;
+  margin-bottom: 0.2em;
 }
 
 .center-column {
@@ -203,126 +220,38 @@ input[type="number"].config-input {
   height: 100%;
 }
 
-.board-controls {
-  margin: 8px auto;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.engine-console {
-  background: #1e1e1e;
-  color: #eeeeee;
-  padding: 10px;
-  height: 250px;
-  overflow-y: auto;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 11px;
-  border: 1px solid #333;
-  border-bottom-left-radius: 4px;
-  border-bottom-right-radius: 4px;
-  transition: opacity 0.3s ease, filter 0.3s ease;
-}
-
-.console-output.muted {
-  opacity: 0.4;
-  filter: grayscale(1);
-  pointer-events: none;
-}
-
-.console-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 10px;
-  background: #333;
-  color: #eee;
-  font-size: 11px;
-  font-weight: bold;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
-}
-
 .console-controls {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.font-size-stepper {
-  display: inline-flex;
-  align-items: center;
-  background: #181818;
-  border: 1px solid #444;
-  border-radius: 3px;
-  overflow: hidden;
-  height: 18px;
-}
-
-.font-size-stepper .btn-font-size {
-  background: transparent;
-  color: #bbb;
-  border: none;
-  border-radius: 0;
-  padding: 0 5px;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: bold;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 15px;
-  height: 100%;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.font-size-stepper .btn-font-size:hover {
-  background: #3a3a3a;
-  color: #fff;
-}
-
-.font-size-stepper .btn-font-dec {
-  border-right: 1px solid #333;
-}
-
-.font-size-stepper .btn-font-inc {
-  border-left: 1px solid #333;
-}
-
-.font-size-label {
-  font-family: monospace;
-  font-size: 10px;
-  color: #aaa;
-  padding: 0 4px;
-  min-width: 25px;
-  text-align: center;
-  user-select: none;
-  line-height: 18px;
-}
-
-.btn-copy-console {
-  background: #444;
-  color: #ccc;
-  border: 1px solid #555;
-  border-radius: 3px;
-  padding: 2px 6px;
+.btn-toggle-profiling {
+  background: var(--surface-strong);
+  color: #334155;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
   cursor: pointer;
   font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s;
 }
 
-.btn-copy-console:hover {
-  background: #555;
-  color: #fff;
+.btn-toggle-profiling:hover {
+  background: var(--border);
+  color: #0F172A;
 }
 
-.stats-grid {
-  margin-top: 0px;
-  display: flex;
-  gap: 15px;
-  overflow: visible;
-  font-size: 0.82em;
+.btn-toggle-profiling.active {
+  background: #2563EB;
+  color: #FFFFFF;
+  border-color: #2563EB;
+}
+
+.btn-toggle-profiling.active:hover {
+  background: #1D4ED8;
 }
 
 /* -- Compact Player Status Card -- */
@@ -339,11 +268,11 @@ input[type="number"].config-input {
 }
 
 .player-status-card.white {
-  background: #fffcf0;
+  background: var(--surface-strong);
 }
 
 .player-status-card.black {
-  background: #f8f8f8;
+  background: var(--surface-strong);
 }
 
 .status-card-header {
@@ -375,14 +304,14 @@ input[type="number"].config-input {
 }
 
 .player-status-card.black .player-status-badge {
-  background: #e2e8f0;
+  background: var(--border);
   color: #334155;
 }
 
 /* -- SQL Search Stats Terminal Output -- */
 .sql-stats-output {
-  background: #1e1e1e;
-  color: #d1d5db;
+  background: var(--surface);
+  color: #334155;
   font-family: 'Courier New', Courier, monospace;
   font-size: 11px;
   padding: 8px 10px;
@@ -393,17 +322,17 @@ input[type="number"].config-input {
 }
 
 .sql-stats-comment {
-  color: #6ee7b7;
+  color: #64748B;
   font-weight: bold;
 }
 
 .sql-stats-header {
-  color: #38bdf8;
+  color: #2563EB;
   font-weight: bold;
 }
 
 .sql-stats-num {
-  color: #f59e0b;
+  color: #2563EB;
 }
 
 .btn-toggle-card {
@@ -422,11 +351,11 @@ input[type="number"].config-input {
 }
 
 .btn-toggle-tool-panel {
-  color: #aaa;
+  color: #64748B;
 }
 
 .btn-toggle-tool-panel:hover {
-  color: #fff;
+  color: #0F172A;
 }
 
 .header-main {
@@ -443,35 +372,6 @@ input[type="number"].config-input {
   font-size: 0.7em;
   color: #888;
   margin-top: 1px;
-}
-
-.stats-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 5px;
-}
-
-.stats-item {
-  flex: 1;
-}
-
-.stats-item strong {
-  display: block;
-  color: #555;
-  font-size: 0.9em;
-}
-
-.stats-value {
-  font-family: monospace;
-  font-size: 0.9em;
-  color: #333;
-}
-
-.player-status {
-  border-top: 1px solid #eee;
-  padding-top: 4px;
-  color: #666;
-  font-style: italic;
 }
 
 button {
@@ -532,54 +432,6 @@ button.pause {
   font-size: 0.9em;
 }
 
-.profiling-stats {
-  margin-top: 8px;
-  font-size: 10.5px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  padding: 6px 8px;
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 0 12px;
-  border-radius: 4px;
-  line-height: 1.35;
-}
-
-.profiling-section {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.profiling-section-bordered {
-  border-left: 1px solid rgba(0, 0, 0, 0.1);
-  padding-left: 10px;
-}
-
-.profiling-section-title {
-  font-weight: 700;
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #666;
-  margin-bottom: 2px;
-  border-bottom: 1px dotted rgba(0, 0, 0, 0.15);
-  padding-bottom: 2px;
-}
-
-.profiling-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.player-stats.white .profiling-stats {
-  background: #fff5d7; /* Slightly darker pale yellow for contrast */
-}
-
-.player-stats.black .profiling-stats {
-  background: #ebebeb;
-}
-
 /* UI Utility Classes */
 .config-group {
   display: inline-flex;
@@ -634,15 +486,6 @@ button.pause {
 .captured-area {
   min-height: 16px;
   margin-bottom: 5px;
-}
-
-.stats-item-bordered {
-  border-left: 1px solid #eee;
-  padding-left: 5px;
-}
-
-.player-stats.black .stats-item-bordered {
-  border-left-color: #ddd;
 }
 
 /* Panic Overlay */
@@ -996,7 +839,7 @@ button.pause {
   background: rgba(15, 23, 42, 0.96); /* Elegant, dark slate blue backdrop */
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  color: #f8fafc;
+  color: #F8FAFC;
   z-index: 10000;
   flex-direction: column;
   justify-content: center;
@@ -1047,7 +890,7 @@ button.pause {
 }
 
 .resolution-message strong {
-  color: #f8fafc;
+  color: #F8FAFC;
 }
 
 .resolution-dims {
@@ -1072,14 +915,6 @@ button.pause {
   }
   .main-container, .modal-overlay {
     display: none !important;
-  }
-}
-
-/* Symmetrical player cards fit in sidebar without overflow */
-@media (max-height: 680px) {
-  .profiling-stats {
-    font-size: 9.5px;
-    padding: 4px;
   }
 }
 
@@ -1113,7 +948,7 @@ button.pause {
 
 /* White Side Header - Premium light gradient with side accent */
 .column-header-title.white-title {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  background: linear-gradient(135deg, #ffffff 0%, var(--surface) 100%);
 }
 
 .column-header-title.white-title h2 {
@@ -1126,7 +961,7 @@ button.pause {
 }
 
 .column-header-title.black-title h2 {
-  color: #f8fafc;
+  color: #F8FAFC;
 }
 
 .color-indicator {
@@ -1145,7 +980,7 @@ button.pause {
 
 .black-dot {
   background: #0f172a;
-  border: 2px solid #cbd5e1;
+  border: 2px solid var(--border-strong);
   box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.8), 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -1320,15 +1155,6 @@ button.pause {
   flex-direction: column;
   flex: 1;
   height: 100%;
-}
-
-.moves-toolbar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid #eee;
-  flex-shrink: 0;
 }
 
 .btn-analytics-action {
@@ -1561,10 +1387,1170 @@ button.pause {
   padding: 6px 10px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
   font-size: 11px;
-  color: #f1f5f9;
+  color: #F1F5F9;
   z-index: 50;
   white-space: nowrap;
   transition: opacity 0.12s ease;
 }
 
+/* ==========================================================================
+   QUERY INSPECTOR STYLES
+   Game Overview (lifecycle waterfall + stats) and the Profiling tab's
+   master-detail cost-center drill-down.
+   ========================================================================== */
 
+/* --- Game Overview: search-lifecycle waterfall --- */
+.inspector-waterfall-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 4px;
+}
+
+.waterfall-depth-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+}
+
+.depth-selector-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  line-height: 22px;
+  flex-shrink: 0;
+}
+
+.depth-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  flex: 1;
+}
+
+.waterfall-summary-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+}
+
+.waterfall-optimizations-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+}
+
+.opt-panel-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748B;
+  letter-spacing: 0.5px;
+}
+
+.opt-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 3px;
+}
+
+.opt-badge-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.opt-badge-label {
+  font-size: 8.5px;
+  color: #64748B;
+}
+
+.opt-badge-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: #2563EB;
+  font-family: monospace;
+}
+
+.summary-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.metric-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #64748B;
+  letter-spacing: 0.5px;
+}
+
+.metric-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.metric-val.highlight {
+  color: #2563EB;
+}
+
+.waterfall-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.waterfall-bar-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.waterfall-stacked-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.06);
+}
+
+.waterfall-bar-segment {
+  height: 100%;
+  transition: opacity 0.15s, transform 0.15s;
+  cursor: pointer;
+}
+
+.waterfall-bar-segment:hover {
+  opacity: 0.85;
+  filter: brightness(1.2);
+}
+
+.waterfall-phase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+.waterfall-phase-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.waterfall-phase-card:hover {
+  background: var(--surface-strong);
+  border-color: #2563EB;
+  transform: translateY(-1px);
+}
+
+.waterfall-phase-card.selected {
+  border-color: #2563EB;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.2);
+}
+
+.phase-card-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.phase-color-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.phase-name {
+  color: #0F172A;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phase-pct {
+  color: #64748B;
+  font-size: 9.5px;
+}
+
+.phase-card-body {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #64748B;
+}
+
+.phase-time {
+  color: #2563EB;
+  font-weight: 600;
+}
+
+/* --- Shared inspector pills & badges (Game Overview + Profiling) --- */
+.sql-filter-pill {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: #64748B;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 9.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sql-filter-pill:hover {
+  background: var(--border);
+  color: #0F172A;
+}
+
+.sql-filter-pill.active {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #FFFFFF;
+}
+
+.phase-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+/* --- Plan DAG (interactive SVG canvas) --- */
+
+.plan-dag-svg {
+  display: block;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.plan-node-box {
+  transition: all 0.15s ease;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.12));
+}
+
+.plan-node-box:hover {
+  filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.35));
+}
+
+.plan-node-box.hotspot {
+  filter: drop-shadow(0 0 8px rgba(220, 38, 38, 0.5));
+}
+
+/* --- Statement selector (multi-statement query batches) --- */
+.plan-step-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  color: #0F172A;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* --- Interactive plan layout & zoom controls --- */
+.plan-view-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 8px;
+  position: relative;
+}
+
+.btn-zoom {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  width: 24px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.btn-zoom:hover {
+  background: var(--border);
+  border-color: #2563EB;
+}
+
+.btn-zoom-reset {
+  width: auto;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.zoom-level-label {
+  font-size: 10px;
+  color: #64748B;
+  min-width: 35px;
+  text-align: center;
+  font-family: monospace;
+}
+
+.plan-canvas-viewport {
+  flex: 1;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: auto;
+  position: relative;
+}
+
+.plan-table-container {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  /* Vertical-only scrolling, with the gutter always reserved so the appearance
+     of the scrollbar never changes the content width. The ranking table is laid
+     out to always fit that width, so there is no horizontal scrollbar to chase
+     to the bottom of a long result set. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Fixed layout keeps every column within the container width regardless of
+   content length; long values truncate (expr cell) or wrap (operator cell). */
+.plan-ranking-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* Header labels wrap rather than forcing their column wider than its share. */
+.inspector-grid.plan-ranking-table th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.plan-ranking-table td {
+  overflow: hidden;
+}
+
+/* The operator cell packs a type pill, an optional hotspot badge and an
+   inspect link; let it wrap instead of being clipped. */
+.plan-ranking-table td:nth-child(2) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.plan-table-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.plan-table-row:hover {
+  background: rgba(37, 99, 235, 0.08) !important;
+}
+
+.plan-table-row.hotspot-row {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.rank-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #64748B;
+  font-family: monospace;
+}
+
+.op-type-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  font-family: monospace;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.hotspot-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(220, 38, 38, 0.1);
+  color: #DC2626;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+.num-cell {
+  font-family: monospace;
+  font-size: 10.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.expr-cell {
+  font-family: monospace;
+  font-size: 9.5px;
+  color: #64748B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-node-details-drawer {
+  background: #FFFFFF;
+  border: 1px solid #2563EB;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.15);
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.drawer-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563EB;
+  font-family: monospace;
+}
+
+.btn-close-drawer {
+  background: transparent;
+  border: none;
+  color: #64748B;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.drawer-content {
+  margin: 0;
+  font-family: monospace;
+  font-size: 10px;
+  color: #334155;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* --- Relational table inspector --- */
+.table-inspector-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.table-inspector-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  gap: 8px;
+}
+
+.table-select-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.table-select-group label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+}
+
+.inspector-table-select {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  color: #0F172A;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.table-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inspector-filter-input {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  color: #0F172A;
+  font-size: 10.5px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  width: 110px;
+}
+
+.btn-inspector-refresh {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: #334155;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-inspector-refresh:hover {
+  background: #2563EB;
+  color: #FFFFFF;
+}
+
+.inspector-row-count {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563EB;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.table-inspector-grid-container {
+  flex: 1;
+  min-height: 220px;
+  max-height: 380px;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: auto;
+}
+
+.inspector-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: monospace;
+  font-size: 10px;
+}
+
+.inspector-grid th {
+  background: var(--surface-strong);
+  color: #2563EB;
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.inspector-grid td {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--surface-strong);
+  color: #334155;
+  white-space: nowrap;
+}
+
+.inspector-grid tr:hover td {
+  background: rgba(37, 99, 235, 0.06);
+  color: #0F172A;
+}
+
+.cell-null {
+  color: #64748B;
+  font-style: italic;
+}
+
+.inspector-table-loading {
+  color: #64748B;
+  font-size: 11px;
+  font-style: italic;
+  padding: 20px;
+  text-align: center;
+}
+
+/* =========================================================================
+   Profiling tab (two-tab model) — master-detail cost-center drill-down
+   ========================================================================= */
+
+/* The split manages its own scrolling, so the pane itself must not scroll. */
+#white-profiling,
+#black-profiling {
+  overflow: hidden;
+}
+
+.overview-profiling-hint {
+  font-size: 10.5px;
+  color: #2563EB;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.overview-profiling-hint.muted {
+  color: #64748B;
+  background: rgba(100, 116, 139, 0.08);
+  border-color: rgba(100, 116, 139, 0.2);
+}
+
+.waterfall-phase-card.clickable {
+  cursor: pointer;
+}
+
+.profiling-root {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Grid (rather than flex) so the detail column can shrink below its content's
+   intrinsic width and never overflow the panel. The leading column collapses
+   to a narrow strip so the detail pane can use the full width. */
+.profiling-split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  transition: grid-template-columns 0.15s ease;
+}
+
+.profiling-split.master-collapsed {
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.profiling-master {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+.profiling-master-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: var(--surface-strong);
+  color: #64748B;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 6px 6px 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pmh-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-collapse-btn {
+  background: transparent;
+  border: none;
+  color: #64748B;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pm-collapse-btn:hover {
+  color: #0F172A;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.profiling-master-body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Collapsed: the header becomes a full-height vertical strip holding the
+   expand button and a vertical title; the list itself is hidden. */
+.profiling-split.master-collapsed .profiling-master-body {
+  display: none;
+}
+
+.profiling-split.master-collapsed .profiling-master-header {
+  /* Reverse so the expand button sits at the top of the strip, with the
+     vertical title filling the space below it. */
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  padding: 8px 2px;
+}
+
+.profiling-split.master-collapsed .pmh-title {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: center;
+  flex: 1 1 auto;
+  font-size: 9px;
+}
+
+.profiling-split.master-collapsed .pm-collapse-btn {
+  font-size: 13px;
+}
+
+.pm-phase-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 10.5px;
+  color: #334155;
+  border-bottom: 1px solid var(--surface-strong);
+}
+
+.pm-phase-header:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.pm-caret {
+  color: #64748B;
+  font-size: 9px;
+  width: 10px;
+}
+
+.pm-phase-name {
+  flex: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-phase-pct {
+  color: #64748B;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.pm-phase-queries {
+  background: var(--surface-strong);
+}
+
+.pm-query {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 10px 5px 24px;
+  cursor: pointer;
+  font-size: 10.5px;
+  color: #334155;
+  border-left: 2px solid transparent;
+}
+
+.pm-query:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.pm-query.selected {
+  background: rgba(37, 99, 235, 0.12);
+  border-left-color: #2563EB;
+  color: #0F172A;
+}
+
+.pm-query-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-query-meta {
+  flex-shrink: 0;
+  color: #64748B;
+  font-family: monospace;
+  font-size: 9.5px;
+}
+
+.profiling-detail {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.profiling-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.pdh-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profiling-detail-header .phase-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.pdh-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdh-metrics {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pdh-metric {
+  font-size: 10px;
+  color: #64748B;
+  font-family: monospace;
+}
+
+.btn-open-tables {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: #2563EB;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.btn-open-tables:hover {
+  background: #2563EB;
+  color: #FFFFFF;
+  border-color: #2563EB;
+}
+
+/* One row: statement selector on the left, view toggle + DAG controls on the
+   right, so no separate toolbar row is needed. */
+.profiling-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.pcr-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pcr-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.steps-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+}
+
+.pv-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #64748B;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.pv-btn:hover {
+  color: #0F172A;
+}
+
+.pv-btn.active {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #FFFFFF;
+}
+
+.btn-copy-step-sql {
+  margin-left: auto;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: #334155;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-copy-step-sql:hover {
+  background: #2563EB;
+  color: #FFFFFF;
+}
+
+.profiling-detail-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  min-height: 220px;
+  min-width: 0;
+}
+
+.profiling-detail-empty {
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.pde-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 6px;
+}
+
+.pde-note {
+  font-size: 10.5px;
+  color: #64748B;
+}
+
+.profiling-sql-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.profiling-sql-block summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  list-style: none;
+}
+
+.profiling-sql-block summary::-webkit-details-marker {
+  display: none;
+}
+
+.psb-label {
+  color: #64748B;
+}
+
+.psb-code {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: monospace;
+  font-size: 10px;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+
+/* --- Cost-center table & DAG polish --- */
+.pvt-ops {
+  font-size: 10px;
+  color: #64748B;
+  font-family: monospace;
+  margin-right: 4px;
+}
+
+.btn-focus-hotspot {
+  width: auto;
+  padding: 0 8px;
+  white-space: nowrap;
+  color: #DC2626;
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+.btn-focus-hotspot:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-inspect-table {
+  background: rgba(37, 99, 235, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  color: #2563EB;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+.btn-inspect-table:hover {
+  background: #2563EB;
+  color: #FFFFFF;
+}
+
+.plan-node-collapse-toggle {
+  transition: all 0.12s;
+}
+
+.plan-node-collapse-toggle:hover circle {
+  fill: var(--surface-strong);
+  stroke-width: 2.5;
+}
+
+/* --- Tables slide-over drawer --- */
+.tables-drawer {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 82%);
+  z-index: 30;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 28px rgba(15, 23, 42, 0.15);
+}
+
+.tables-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface-strong);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+}
+
+.tables-drawer-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #0F172A;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.btn-close-tables-drawer {
+  background: transparent;
+  border: none;
+  color: #64748B;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-close-tables-drawer:hover {
+  color: #0F172A;
+}
+
+.tables-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.tables-drawer-body .table-inspector-grid-container {
+  max-height: none;
+}

@@ -88,7 +88,7 @@ export function getCreateTempTablesSQL() {
 }
 
 export function getClearSearchTreeSQL() {
-    return `DELETE FROM search_tree; DELETE FROM frontier_nodes; DELETE FROM non_mate_nodes; DELETE FROM attempted_expansions; DELETE FROM qs_covered_nodes;`;
+    return `/* @phase: Frontier Buffers | @title: Clear Search Tree & Reset Tables | @key: buffer_clear_search_tree */ DELETE FROM search_tree; DELETE FROM frontier_nodes; DELETE FROM non_mate_nodes; DELETE FROM attempted_expansions; DELETE FROM qs_covered_nodes;`;
 }
 
 export function getInsertRootNodeSQL(rootIsCheck) {
