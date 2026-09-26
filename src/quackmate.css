@@ -6,18 +6,15 @@
  */
 
 :root {
-  /* Warm surface tints echoing the board's light/dark brown palette.
-     --surface is the lightest pane/card wash;
-     the slightly deeper --surface-strong is used for pane headers,
-     hovers and collapse fills.
-  */
-  --surface: #FEFCF6;
-  --surface-strong: #F9F5EA;
-  /* Warm border tones matching the surfaces above: --border for the common
-     hairline borders and hover fills, --border-strong for dashed/emphasised
-     outlines. */
-  --border: #E7E0CC;
-  --border-strong: #D6CDB2;
+  /* Subtle warm-neutral tints that sit between the board's brown palette and
+     plain grey. --surface is the lightest pane/card wash; the slightly deeper
+     --surface-strong is used for pane headers, hovers and collapse fills. */
+  --surface: #FCFBF8;
+  --surface-strong: #F5F4EF;
+  /* Matching border tones: --border for the common hairline borders and hover
+     fills, --border-strong for dashed/emphasised outlines. */
+  --border: #E5E3DC;
+  --border-strong: #D3D1C9;
 }
 
 body {
