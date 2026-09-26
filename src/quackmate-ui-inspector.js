@@ -178,6 +178,7 @@ export class QueryInspectorUI {
 
         // Player game stats & running averages
         const player = this.getPlayer ? this.getPlayer() : null;
+        const isHuman = player?.player === 'human';
         const movesCount = player?.stats?.moves || 0;
         const avgTimeMs = movesCount > 0 ? Math.round(player.stats.time / movesCount) : null;
         const avgNodesCount = movesCount > 0 ? Math.round(player.stats.nodes / movesCount) : null;
@@ -254,34 +255,39 @@ export class QueryInspectorUI {
             `;
         });
 
-        const scopeTitle = depthData
-            ? `Iterative Deepening Ply ${activePly} Only (${totalMs.toFixed(1)}ms, ${queryCount} queries)`
-            : `Cumulative Search (Depths 1 → ${session.depth}): ${totalMs.toFixed(1)}ms, ${queryCount} queries`;
+        // A human side's session is the arbiter validating the move, not an AI
+        // search, so the search-only depth selector is hidden and a note
+        // explains what the timings actually measure.
+        const depthSelectorHtml = isHuman ? '' : `<div class="waterfall-depth-selector">
+                    <span class="depth-selector-label">Iteration Scope:</span>
+                    <div class="depth-pills-row">
+                        ${depthPillsHtml}
+                    </div>
+                </div>`;
+
+        const humanNoteHtml = isHuman
+            ? `<div class="overview-human-note">🧑 Human move — the timings below measure the arbiter checking your move's legality, not an AI search.</div>`
+            : '';
 
         const hintHtml = profilingOn
             ? `<div class="overview-profiling-hint">⚡ Profiling is ON — click a phase below to zoom into its cost centers.</div>`
             : `<div class="overview-profiling-hint muted">Turn on ⚡ Profiling and make a move to unlock the cost-center drill-down.</div>`;
 
         const html = `<div class="inspector-waterfall-wrapper">
+                ${humanNoteHtml}
                 ${hintHtml}
 
-                <!-- Depth Iteration Scope Selector -->
-                <div class="waterfall-depth-selector">
-                    <span class="depth-selector-label">Iteration Scope:</span>
-                    <div class="depth-pills-row">
-                        ${depthPillsHtml}
-                    </div>
-                </div>
+                ${depthSelectorHtml}
 
                 <!-- Top Summary Metrics Row -->
                 <div class="waterfall-summary-header">
                     <div class="summary-metric">
-                        <span class="metric-label">${depthData ? `Ply ${activePly} Time` : 'Move Time'}</span>
+                        <span class="metric-label">${depthData ? `Ply ${activePly} Time` : (isHuman ? 'Move Check Time' : 'Move Time')}</span>
                         <span class="metric-val highlight">${totalMs.toFixed(1)} ms</span>
                         ${avgTimeMs !== null && !depthData ? `<span style="font-size: 9.5px; color: #64748B;">avg ${avgTimeMs}ms</span>` : ''}
                     </div>
                     <div class="summary-metric">
-                        <span class="metric-label">Nodes Evaluated</span>
+                        <span class="metric-label">${isHuman ? 'Rows Processed' : 'Nodes Evaluated'}</span>
                         <span class="metric-val">${nodesEvaluated.toLocaleString()}</span>
                         ${avgNodesCount !== null && !depthData ? `<span style="font-size: 9.5px; color: #64748B;">avg ${avgNodesCount.toLocaleString()}</span>` : ''}
                     </div>
@@ -298,7 +304,7 @@ export class QueryInspectorUI {
                         <span class="metric-val">${queryCount.toLocaleString()}</span>
                     </div>
                     <div class="summary-metric">
-                        <span class="metric-label">Search Horizon</span>
+                        <span class="metric-label">${isHuman ? 'Check Depth' : 'Search Horizon'}</span>
                         <span class="metric-val">Ply ${session.depth}</span>
                     </div>
                 </div>

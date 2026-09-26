@@ -2044,6 +2044,18 @@ button.pause {
   border-color: rgba(100, 116, 139, 0.2);
 }
 
+/* Explains that a human side's timings come from the arbiter validating the
+   move, not from an AI search. Amber accent to distinguish it from the blue
+   profiling hint. */
+.overview-human-note {
+  font-size: 10.5px;
+  color: #92400E;
+  background: rgba(202, 138, 4, 0.1);
+  border: 1px solid rgba(202, 138, 4, 0.28);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
 .waterfall-phase-card.clickable {
   cursor: pointer;
 }
