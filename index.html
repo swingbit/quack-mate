@@ -467,7 +467,7 @@
 
         <section id="help-restricted-section">
           <h3>&#9888; Restricted Mode</h3>
-          <p>You are currently playing using a WASM DuckDB engine in <strong>Restricted Mode</strong>. Because memory is limited to 4GB, search depth is capped at 5 (3 for Recursive CTE) and threads at 1.</p>
+          <p>You are currently playing using a WASM DuckDB engine in <strong>Restricted Mode</strong>. Because memory is limited to 4GB, search depth is capped multi-threading is off.</p>
           <p>To experience Quack-Mate with higher depths and the high-performance Native DuckDB backend, please visit the <a href="https://github.com/swingbit/quack-mate" target="_blank">GitHub Repository</a> and run it locally.</p>
         </section>
 
@@ -478,6 +478,7 @@
             <li><strong>Max Depth QS:</strong> Quiescence Search depth: how many plies on top of Max Depth the AI calculates to stabilize non-quiet positions involving captures.</li>
             <li><strong>Strategy:</strong> Different SQL approaches to search (Recursive CTE is impractical above Max Depth 3).</li>
             <li><strong>Optimisations:</strong> Toggleable Move Ordering Heuristics and Pruning Techniques that help the engine search faster.</li>
+            <li><strong>Profiling:</strong> Game overview and Profiling allow to explore the SQL queries and their cost.</li>
           </ul>
         </section>
       </div>
