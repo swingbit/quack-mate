@@ -34,33 +34,53 @@ let lastUsableVersion = null;
 // duckdb-wasm has renamed its distribution bundles across releases: the older
 // threaded "coi" bundle (duckdb-coi.wasm + duckdb-browser-coi.worker.js) was
 // replaced by a "threads" bundle (duckdb-threads.wasm +
-// duckdb-browser-threads.worker.js) and a single-threaded "base" bundle.
-// Instead of hardcoding one naming scheme (which 404s on versions shipping a
-// different one), we ask jsDelivr which files a version actually publishes and
-// pick the highest-priority scheme that is fully present.
+// duckdb-browser-threads.worker.js), and single-threaded "base"/"mvp" bundles
+// exist as well. Instead of hardcoding one naming scheme (which 404s on
+// versions shipping a different one), we ask jsDelivr which files a version
+// actually publishes and pick the best scheme that is fully present.
+//
+// Threaded bundles need SharedArrayBuffer, i.e. cross-origin isolation. When
+// the page is NOT isolated (e.g. a browser that doesn't support
+// `COEP: credentialless`), we must use a single-threaded bundle instead.
 const BUNDLE_SCHEMES = [
+    // Threaded bundles (require cross-origin isolation / SharedArrayBuffer).
     {
         name: 'coi',
+        threaded: true,
         mainModule: 'duckdb-coi.wasm',
         mainWorker: 'duckdb-browser-coi.worker.js',
         pthreadWorker: 'duckdb-browser-coi.pthread.worker.js',
     },
     {
         name: 'threads',
+        threaded: true,
         mainModule: 'duckdb-threads.wasm',
         mainWorker: 'duckdb-browser-threads.worker.js',
         pthreadWorker: 'duckdb-browser-threads.pthread.worker.js',
     },
+    // Single-threaded bundles (no SharedArrayBuffer / no isolation required).
     {
         name: 'base',
+        threaded: false,
         mainModule: 'duckdb-base.wasm',
         mainWorker: 'duckdb-browser-base.worker.js',
+        pthreadWorker: null,
+    },
+    {
+        name: 'mvp',
+        threaded: false,
+        mainModule: 'duckdb-mvp.wasm',
+        mainWorker: 'duckdb-browser-mvp.worker.js',
         pthreadWorker: null,
     },
 ];
 
 const wasmDistBase = (version) =>
     `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${version}/dist`;
+
+function isCrossOriginIsolated() {
+    return typeof self !== 'undefined' && self.crossOriginIsolated === true;
+}
 
 // version -> resolved bundle descriptor (also caches negatives)
 const resolvedBundles = new Map();
@@ -104,9 +124,15 @@ async function resolveBundle(version) {
         // resolve optimistically and let load() verify with a real fetch.
     }
 
+    // When isolated we can (and prefer) the threaded bundles; otherwise only
+    // single-threaded bundles are usable.
+    const ordered = isCrossOriginIsolated()
+        ? [...BUNDLE_SCHEMES.filter((s) => s.threaded), ...BUNDLE_SCHEMES.filter((s) => !s.threaded)]
+        : BUNDLE_SCHEMES.filter((s) => !s.threaded);
+
     let resolved = null;
     if (fileSet) {
-        for (const scheme of BUNDLE_SCHEMES) {
+        for (const scheme of ordered) {
             const required = [scheme.mainModule, scheme.mainWorker, scheme.pthreadWorker].filter(Boolean);
             if (required.every((f) => fileSet.has(`/dist/${f}`))) {
                 resolved = _buildBundle(version, scheme);
@@ -115,22 +141,22 @@ async function resolveBundle(version) {
         }
         if (!resolved) {
             const base = wasmDistBase(version);
-            const preferred = BUNDLE_SCHEMES[0];
+            const wanted = ordered[0] || BUNDLE_SCHEMES[0];
             resolved = {
                 usable: false,
                 name: null,
                 mainModuleUrl: null,
                 mainWorkerUrl: null,
                 pthreadWorkerUrl: null,
-                missing: [preferred.mainModule, preferred.mainWorker, preferred.pthreadWorker]
+                missing: [wanted.mainModule, wanted.mainWorker, wanted.pthreadWorker]
                     .filter(Boolean)
                     .map((f) => `${base}/${f}`),
             };
         }
     } else {
-        // Can't list files - optimistically use the legacy scheme; load() will
+        // Can't list files - optimistically use the preferred scheme; load() will
         // confirm each asset with a real fetch and throw if it's missing.
-        resolved = _buildBundle(version, BUNDLE_SCHEMES[0]);
+        resolved = _buildBundle(version, ordered[0] || BUNDLE_SCHEMES[0]);
     }
 
     resolvedBundles.set(version, resolved);

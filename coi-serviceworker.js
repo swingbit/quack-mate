@@ -5,9 +5,17 @@ if (typeof window === 'undefined') {
 
     self.addEventListener("fetch", (event) => {
         const { request } = event;
-        
-        // Skip interception for the local engine server to avoid console noise when it's down
-        if (request.url.includes(":3001") || request.url.includes("gc.zgo.at")) {
+
+        // Skip interception for these requests (avoids console noise and needless
+        // proxying):
+        //  - :3001            local engine server (when it's down)
+        //  - gc.zgo.at        GoatCounter script
+        //  - goatcounter.com  GoatCounter tracking beacon
+        if (
+            request.url.includes(":3001") ||
+            request.url.includes("gc.zgo.at") ||
+            request.url.includes("goatcounter.com")
+        ) {
             return;
         }
 
@@ -23,7 +31,7 @@ if (typeof window === 'undefined') {
                     }
 
                     const newHeaders = new Headers(response.headers);
-                    newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+                    newHeaders.set("Cross-Origin-Embedder-Policy", "credentialless");
                     newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
 
                     return new Response(response.body, {
@@ -32,11 +40,13 @@ if (typeof window === 'undefined') {
                         headers: newHeaders,
                     });
                 })
-                .catch((e) => {
-                    // If fetch fails (e.g. server down), we MUST return a valid Response or let it fail naturally.
-                    // Returning undefined here causes "Failed to convert value to 'Response'".
-                    // We throw the error so the browser handles the fetch failure normally.
-                    throw e;
+                .catch(() => {
+                    // Return a clean network-error Response instead of re-throwing.
+                    // A rejected respondWith() promise surfaces as an uncaught
+                    // promise rejection in the console for EVERY failed request
+                    // (ad-blocked trackers, offline third parties, etc.), which is
+                    // pure noise. Response.error() still fails the request cleanly.
+                    return Response.error();
                 })
         );
     });

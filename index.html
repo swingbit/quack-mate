@@ -26,7 +26,10 @@
   </script>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 
-  <!-- GoatCounter Analytics (production only) -->
+  <!-- GoatCounter Analytics (production only).
+       This page is cross-origin isolated via COEP: credentialless (see
+       coi-serviceworker.js), which - unlike require-corp - still allows
+       GoatCounter's cross-origin no-cors tracking beacon. -->
   <script>
     if (location.hostname === 'swingbit.github.io' || location.hostname === 'quack-mate.com' || location.hostname === 'www.quack-mate.com') {
       var gc = document.createElement('script');

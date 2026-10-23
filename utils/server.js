@@ -231,9 +231,15 @@ app.get('/:engineId/version', getEngine, async (req, res) => {
 // Static Server (HTTP on 8000)
 const staticApp = express();
 staticApp.use((req, res, next) => {
-    // These headers are needed to enable crossOriginIsolated for SharedArrayBuffer
+    // These headers enable crossOriginIsolated for SharedArrayBuffer.
+    // "credentialless" (instead of "require-corp") is used because it still
+    // enables cross-origin isolation but, unlike require-corp, does not require
+    // third-party resources to opt in via CORP/CORS - so GoatCounter's
+    // cross-origin no-cors tracking beacon is allowed. Browsers without
+    // support simply aren't isolated and the engine falls back to a
+    // single-threaded WASM bundle.
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+    res.setHeader("Cross-Origin-Embedder-Policy", "credentialless");
     next();
 });
 staticApp.use(express.static(path.join(__dirname, '..')));
