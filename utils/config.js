@@ -8,6 +8,22 @@
  */
 
 export const CONFIG = {
-    DUCKDB_WASM_VERSION: '1.33.1-dev64.0',
+    DUCKDB_WASM_VERSION: '1.33.1-dev65.0',
     REMOTE_ENGINE_URL: 'http://localhost:3001'
 };
+
+// The DuckDB-WASM version that is ACTIVE for this session. It starts at the
+// built-in default above, but the settings panel can change it at runtime.
+// Any engine created or (re)initialized afterwards reads this instead of the
+// hard-coded default, so switching versions takes effect on the very next
+// move rather than only after a full re-initialization.
+let activeWasmVersion = CONFIG.DUCKDB_WASM_VERSION;
+
+export function getActiveWasmVersion() {
+    return activeWasmVersion;
+}
+
+export function setActiveWasmVersion(version) {
+    activeWasmVersion = version || CONFIG.DUCKDB_WASM_VERSION;
+    return activeWasmVersion;
+}
