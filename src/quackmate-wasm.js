@@ -2,7 +2,7 @@
  * WebAssembly bridge for Quackmate.
  * Loads DuckDB-Wasm and connects it to the engine logic for browser use.
  */
-import { getActiveWasmVersion } from '../utils/config.js';
+import { getActiveWasmVersion, setActiveWasmVersion } from '../utils/config.js';
 import {
     find_best_move as find_best_move_logic,
     try_apply_move as try_apply_move_logic,
@@ -25,6 +25,131 @@ import { telemetry, profileBatch, splitStatements } from './quackmate-telemetry.
 
 export { DEFAULT_OPTIONS, RESTRICTED_MODE_LIMITS };
 
+// The last version we successfully brought up, used as a fallback if a later
+// version turns out to be unusable at init time.
+let lastUsableVersion = null;
+
+// --- DuckDB-WASM bundle resolution ---
+//
+// duckdb-wasm has renamed its distribution bundles across releases: the older
+// threaded "coi" bundle (duckdb-coi.wasm + duckdb-browser-coi.worker.js) was
+// replaced by a "threads" bundle (duckdb-threads.wasm +
+// duckdb-browser-threads.worker.js) and a single-threaded "base" bundle.
+// Instead of hardcoding one naming scheme (which 404s on versions shipping a
+// different one), we ask jsDelivr which files a version actually publishes and
+// pick the highest-priority scheme that is fully present.
+const BUNDLE_SCHEMES = [
+    {
+        name: 'coi',
+        mainModule: 'duckdb-coi.wasm',
+        mainWorker: 'duckdb-browser-coi.worker.js',
+        pthreadWorker: 'duckdb-browser-coi.pthread.worker.js',
+    },
+    {
+        name: 'threads',
+        mainModule: 'duckdb-threads.wasm',
+        mainWorker: 'duckdb-browser-threads.worker.js',
+        pthreadWorker: 'duckdb-browser-threads.pthread.worker.js',
+    },
+    {
+        name: 'base',
+        mainModule: 'duckdb-base.wasm',
+        mainWorker: 'duckdb-browser-base.worker.js',
+        pthreadWorker: null,
+    },
+];
+
+const wasmDistBase = (version) =>
+    `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${version}/dist`;
+
+// version -> resolved bundle descriptor (also caches negatives)
+const resolvedBundles = new Map();
+
+function _buildBundle(version, scheme) {
+    const base = wasmDistBase(version);
+    return {
+        usable: true,
+        name: scheme.name,
+        mainModuleUrl: `${base}/${scheme.mainModule}`,
+        mainWorkerUrl: `${base}/${scheme.mainWorker}`,
+        pthreadWorkerUrl: scheme.pthreadWorker ? `${base}/${scheme.pthreadWorker}` : null,
+    };
+}
+
+/**
+ * Resolves which distribution bundle a given duckdb-wasm version ships, by
+ * consulting jsDelivr's file listing. Returns a descriptor with `usable`, the
+ * resolved `name`, the asset URLs, and (when unusable) the `missing` URLs.
+ * Falls back to the legacy scheme when the listing can't be fetched - load()
+ * then verifies the assets for real.
+ */
+async function resolveBundle(version) {
+    if (resolvedBundles.has(version)) return resolvedBundles.get(version);
+
+    let fileSet = null;
+    try {
+        const res = await fetch(
+            `https://data.jsdelivr.com/v1/package/npm/@duckdb/duckdb-wasm@${version}/flat`
+        );
+        if (res.ok) {
+            const data = await res.json();
+            fileSet = new Set(((data && data.files) || []).map((f) => f.name));
+        } else {
+            // jsDelivr returns 404 for unknown versions -> the version does not
+            // exist, so treat it as definitely unusable (empty file set).
+            fileSet = new Set();
+        }
+    } catch (_) {
+        // Network/listing unavailable (offline/blocked) - don't hard-fail;
+        // resolve optimistically and let load() verify with a real fetch.
+    }
+
+    let resolved = null;
+    if (fileSet) {
+        for (const scheme of BUNDLE_SCHEMES) {
+            const required = [scheme.mainModule, scheme.mainWorker, scheme.pthreadWorker].filter(Boolean);
+            if (required.every((f) => fileSet.has(`/dist/${f}`))) {
+                resolved = _buildBundle(version, scheme);
+                break;
+            }
+        }
+        if (!resolved) {
+            const base = wasmDistBase(version);
+            const preferred = BUNDLE_SCHEMES[0];
+            resolved = {
+                usable: false,
+                name: null,
+                mainModuleUrl: null,
+                mainWorkerUrl: null,
+                pthreadWorkerUrl: null,
+                missing: [preferred.mainModule, preferred.mainWorker, preferred.pthreadWorker]
+                    .filter(Boolean)
+                    .map((f) => `${base}/${f}`),
+            };
+        }
+    } else {
+        // Can't list files - optimistically use the legacy scheme; load() will
+        // confirm each asset with a real fetch and throw if it's missing.
+        resolved = _buildBundle(version, BUNDLE_SCHEMES[0]);
+    }
+
+    resolvedBundles.set(version, resolved);
+    return resolved;
+}
+
+/**
+ * Public usability probe: does `version` ship a bundle this engine can load?
+ * The settings panel uses it to reject unusable versions before switching.
+ */
+export async function checkWasmVersionUsable(version) {
+    const bundle = await resolveBundle(version);
+    return {
+        usable: !!bundle.usable,
+        scheme: bundle.name,
+        missing: bundle.missing || [],
+    };
+}
+
 // --- Resource Cache ---
 const WasmBlobCache = {
     blobs: null,
@@ -41,29 +166,51 @@ const WasmBlobCache = {
         if (this.loadPromise) return this.loadPromise;
 
         this.loadPromise = (async () => {
-            const bundle = {
-                mainModule: `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${version}/dist/duckdb-coi.wasm`,
-                mainWorker: `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${version}/dist/duckdb-browser-coi.worker.js`,
-                pthreadWorker: `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${version}/dist/duckdb-browser-coi.pthread.worker.js`,
-            };
+            const bundle = await resolveBundle(version);
+            if (!bundle.usable) {
+                throw new Error(
+                    `DuckDB WASM ${version} is not usable: required bundle files are missing (${(bundle.missing || []).join(', ')})`
+                );
+            }
 
-            const [worker_script, pthread_worker_script] = await Promise.all([
-                fetch(bundle.mainWorker).then(resp => resp.text()),
-                fetch(bundle.pthreadWorker).then(resp => resp.text()),
-            ]);
-
+            const worker_resp = await fetch(bundle.mainWorkerUrl);
+            if (!worker_resp.ok) {
+                throw new Error(
+                    `DuckDB WASM ${version}: worker not found (${bundle.mainWorkerUrl}, HTTP ${worker_resp.status})`
+                );
+            }
+            const worker_script = await worker_resp.text();
             const worker_blob = new Blob([worker_script], { type: 'application/javascript' });
-            const pthread_worker_blob = new Blob([pthread_worker_script], { type: 'application/javascript' });
             const worker_url = URL.createObjectURL(worker_blob);
-            const pthread_worker_url = URL.createObjectURL(pthread_worker_blob);
+
+            let pthread_worker_url = null;
+            if (bundle.pthreadWorkerUrl) {
+                const pthread_resp = await fetch(bundle.pthreadWorkerUrl);
+                if (!pthread_resp.ok) {
+                    throw new Error(
+                        `DuckDB WASM ${version}: pthread worker not found (${bundle.pthreadWorkerUrl}, HTTP ${pthread_resp.status})`
+                    );
+                }
+                const pthread_worker_script = await pthread_resp.text();
+                pthread_worker_url = URL.createObjectURL(
+                    new Blob([pthread_worker_script], { type: 'application/javascript' })
+                );
+            }
 
             this.blobs = {
-                mainModule: bundle.mainModule,
+                mainModule: bundle.mainModuleUrl,
                 workerUrl: worker_url,
-                pthreadWorkerUrl: pthread_worker_url
+                pthreadWorkerUrl: pthread_worker_url,
+                scheme: bundle.name,
             };
             return this.blobs;
-        })();
+        })().catch(err => {
+            // Never cache a rejected load: a later attempt (e.g. falling back to
+            // another version) must be able to retry cleanly.
+            this.loadPromise = null;
+            this.blobs = null;
+            throw err;
+        });
 
         return this.loadPromise;
     }
@@ -237,9 +384,7 @@ export class DuckDBWasmEngine {
         }
     }
 
-    async init(version = getActiveWasmVersion()) {
-        await this.dispose();
-
+    async _initWithVersion(version) {
         const duckdb = await import(`https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${version}/+esm`);
         const blobs = await WasmBlobCache.load(version);
 
@@ -247,7 +392,8 @@ export class DuckDBWasmEngine {
         const logger = new duckdb.ConsoleLogger();
         this.db = new duckdb.AsyncDuckDB(logger, this._worker);
 
-        // Initialize the database
+        // Initialize the database. The pthread worker is null for the
+        // single-threaded "base" bundle; duckdb-wasm handles a null pthread.
         await this.db.instantiate(blobs.mainModule, blobs.pthreadWorkerUrl);
 
         // Initialize schema
@@ -263,6 +409,29 @@ export class DuckDBWasmEngine {
 
         } finally {
             await c.close();
+        }
+    }
+
+    async init(version = getActiveWasmVersion()) {
+        await this.dispose();
+        try {
+            await this._initWithVersion(version);
+            lastUsableVersion = version;
+        } catch (err) {
+            await this.dispose();
+            // If this version can't be brought up but we previously initialized
+            // a different one successfully, recover by falling back to it rather
+            // than leaving the engine dead.
+            if (lastUsableVersion && lastUsableVersion !== version) {
+                console.warn(
+                    `DuckDB WASM ${version} could not be initialized (${err.message}); ` +
+                    `falling back to last known good version ${lastUsableVersion}.`
+                );
+                await this._initWithVersion(lastUsableVersion);
+                setActiveWasmVersion(lastUsableVersion);
+                return;
+            }
+            throw err;
         }
     }
 

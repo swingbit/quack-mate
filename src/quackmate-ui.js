@@ -11,6 +11,7 @@ import {
   setQueryLogger,
   DuckDBWasmEngine,
   defaultEngine,
+  checkWasmVersionUsable,
   DEFAULT_OPTIONS,
   RESTRICTED_MODE_LIMITS
 } from './quackmate-wasm.js';
@@ -2091,14 +2092,41 @@ async function fetchWasmVersions() {
     renderOptions();
   }
 
-  $select.on('change', function() {
+  $select.on('change', async function() {
       const nextVersion = $(this).val();
       if (!nextVersion || nextVersion === 'loading') return;
       if (nextVersion === activeVersion) return;
 
+      const previousVersion = activeVersion;
+
+      // Verify the bundle BEFORE committing: not every published version ships
+      // a bundle this engine can load, and duckdb-wasm has renamed its bundles
+      // across releases. A blind switch could otherwise leave the engine dead.
+      $engineStatus.text(`Verifying DuckDB WASM ${nextVersion}…`);
+      let check;
+      try {
+          check = await checkWasmVersionUsable(nextVersion);
+      } catch (e) {
+          check = { usable: false, missing: [], error: e.message };
+      }
+      $engineStatus.text('');
+
+      if (!check.usable) {
+          const missing = (check.missing || []).map(u => u.split('/').pop()).join(', ');
+          console.warn(`DuckDB WASM version ${nextVersion} is not usable.`, check);
+          alert(
+              `DuckDB WASM version "${nextVersion}" is not usable with this engine.\n\n` +
+              (missing ? `Missing bundle file(s): ${missing}\n\n` : '') +
+              `Keeping "${previousVersion}".`
+          );
+          // Revert the dropdown to the still-active version.
+          renderOptions();
+          return;
+      }
+
       activeVersion = nextVersion;
       setActiveWasmVersion(nextVersion);
-      console.log(`Switching WASM version to: ${nextVersion}`);
+      console.log(`Switching WASM version to: ${nextVersion} (bundle: ${check.scheme})`);
 
       // Update labels to show new active status
       renderOptions();
