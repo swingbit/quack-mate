@@ -14,7 +14,7 @@ import {
   DEFAULT_OPTIONS,
   RESTRICTED_MODE_LIMITS
 } from './quackmate-wasm.js';
-import { CONFIG } from '../utils/config.js';
+import { CONFIG, getActiveWasmVersion, setActiveWasmVersion } from '../utils/config.js';
 import { TURNS, SCORE_MATE_THRESHOLD } from './quackmate-common.js';
 import { sanFromMove, isKingInCheck } from './quackmate-san.js';
 import { GameState, find_best_move as find_best_move_js } from './quackmate-js-dfs.js';
@@ -57,7 +57,7 @@ class LogStreamer {
 
 class WasmEngineAdapter {
   constructor() {
-    this.version = CONFIG.DUCKDB_WASM_VERSION; // Default
+    this.version = getActiveWasmVersion(); // Follows any runtime version switch
     this.engine = new DuckDBWasmEngine();
     this.logs = [];
     this.loggerCallback = null;
@@ -94,6 +94,15 @@ class WasmEngineAdapter {
   async resetGame() { if (this.engine.resetGame) await this.engine.resetGame(); }
   async getVersion() { return this.engine.getVersion(); }
   async query(sql) { return this.engine.query(sql); }
+
+  // Tears down the underlying WASM database/worker. Used when the selected
+  // WASM version changes: the adapter is discarded and lazily rebuilt (with
+  // the new version) the next time this side moves.
+  async dispose() {
+    if (this.engine && typeof this.engine.dispose === 'function') {
+      await this.engine.dispose();
+    }
+  }
 }
 
 class StandardEngineAdapter {
@@ -917,6 +926,15 @@ function new_game(orientation, start_fen) {
   $move_count_black.text('0');
   players.white.stats = { moves: 0, time: 0, search_time: 0, nodes: 0 };
   players.black.stats = { moves: 0, time: 0, search_time: 0, nodes: 0 };
+
+  // Drop the telemetry sessions and reset the per-side inspector state, so a
+  // new game starts from a clean slate instead of showing the previous game's
+  // search statistics and captured profiling cost centers.
+  telemetry.clearSession('white');
+  telemetry.clearSession('black');
+  if (whiteInspector) whiteInspector.resetView();
+  if (blackInspector) blackInspector.resetView();
+
   updateStatsUI('white');
   updateStatsUI('black');
 
@@ -2036,7 +2054,7 @@ function onDragStart(source, piece, position, orientation) {
 async function fetchWasmVersions() {
   const $select = $('#wasm-version-select');
   let versions = [];
-  let activeVersion = CONFIG.DUCKDB_WASM_VERSION;
+  let activeVersion = getActiveWasmVersion();
 
   const renderOptions = () => {
     $select.empty();
@@ -2074,18 +2092,37 @@ async function fetchWasmVersions() {
   }
 
   $select.on('change', function() {
-      activeVersion = $(this).val();
-      console.log(`Switching WASM version to: ${activeVersion}`);
-      
+      const nextVersion = $(this).val();
+      if (!nextVersion || nextVersion === 'loading') return;
+      if (nextVersion === activeVersion) return;
+
+      activeVersion = nextVersion;
+      setActiveWasmVersion(nextVersion);
+      console.log(`Switching WASM version to: ${nextVersion}`);
+
       // Update labels to show new active status
       renderOptions();
 
-      // Update all existing WASM adapters
-      if (players.white.engine instanceof WasmEngineAdapter) {
-          players.white.engine.version = activeVersion;
-      }
-      if (players.black.engine instanceof WasmEngineAdapter) {
-          players.black.engine.version = activeVersion;
+      // The switch must take effect on the NEXT move. A live WASM adapter is
+      // already initialized against the OLD version, and getOrInitEngine()
+      // would otherwise keep reusing it (its player type is unchanged). So
+      // dispose and drop any such adapter - it is rebuilt, against the newly
+      // selected version, the next time that side moves.
+      ['white', 'black'].forEach(color => {
+          const engine = players[color].engine;
+          if (engine instanceof WasmEngineAdapter) {
+              engine.dispose().catch(() => {});
+              players[color].engine = null;
+              players[color].engineType = null;
+              $(`#${color}-version-info`).empty();
+          }
+      });
+
+      // The default engine (arbiter for move legality / game-end checks and
+      // the inspector's fallback) is a separate singleton: re-arm it too so it
+      // lazily comes back up on the new version the next time it's used.
+      if (defaultEngine && typeof defaultEngine.dispose === 'function') {
+          defaultEngine.dispose().catch(() => {});
       }
   });
 }

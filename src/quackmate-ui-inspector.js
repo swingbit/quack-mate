@@ -154,6 +154,25 @@ export class QueryInspectorUI {
         }
     }
 
+    /**
+     * Clears every piece of per-side view state (depth filter, phase/query
+     * selections, accordion expansion, drilled-in statement, detail view) and
+     * re-renders the panes. Called on a game reset so that, together with the
+     * telemetry session being dropped, no selection or captured cost-centre
+     * from the previous game lingers in the inspector.
+     */
+    resetView() {
+        this.activeDepthFilter = null;
+        this.selectedPhase = null;
+        this.selectedTemplateKey = null;
+        this.expandedPhases = new Set();
+        this.activePlanStepIndex = null;
+        this.detailView = 'costs';
+        this.masterCollapsed = false;
+        this.closeTablesDrawer();
+        this.refreshActiveViews();
+    }
+
     // =========================================================================
     // Game Overview — Search lifecycle & stats
     // =========================================================================

@@ -2,7 +2,7 @@
  * WebAssembly bridge for Quackmate.
  * Loads DuckDB-Wasm and connects it to the engine logic for browser use.
  */
-import { CONFIG } from '../utils/config.js';
+import { getActiveWasmVersion } from '../utils/config.js';
 import {
     find_best_move as find_best_move_logic,
     try_apply_move as try_apply_move_logic,
@@ -31,7 +31,7 @@ const WasmBlobCache = {
     currentVersion: null,
     loadPromise: null,
 
-    async load(version = CONFIG.DUCKDB_WASM_VERSION) {
+    async load(version = getActiveWasmVersion()) {
         if (this.currentVersion !== version) {
             this.blobs = null;
             this.loadPromise = null;
@@ -208,14 +208,37 @@ export class DuckDBWasmEngine {
         this.queryLogger = logger;
     }
 
-    async init(version = CONFIG.DUCKDB_WASM_VERSION) {
+    /**
+     * Tears down the underlying worker/database (if any) so the engine can be
+     * safely re-initialized later - possibly against a different WASM version.
+     * Idempotent: safe to call on an engine that was never initialized or has
+     * already been disposed.
+     */
+    async dispose() {
         if (this.db) {
-            await this.db.terminate();
-            if (this._worker) {
-                this._worker.terminate();
-                this._worker = null;
-            }
+            try { await this.db.terminate(); } catch (e) { /* ignore */ }
+            this.db = null;
         }
+        if (this._worker) {
+            try { this._worker.terminate(); } catch (e) { /* ignore */ }
+            this._worker = null;
+        }
+    }
+
+    /**
+     * Lazily initializes the underlying database if it isn't ready. This lets
+     * callers dispose() an engine (e.g. after a WASM version switch) and have
+     * it transparently come back up - on the new version - the next time it's
+     * actually used.
+     */
+    async _ensureInit() {
+        if (!this.db) {
+            await this.init();
+        }
+    }
+
+    async init(version = getActiveWasmVersion()) {
+        await this.dispose();
 
         const duckdb = await import(`https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${version}/+esm`);
         const blobs = await WasmBlobCache.load(version);
@@ -244,7 +267,7 @@ export class DuckDBWasmEngine {
     }
 
     async getDuckDBThreads() {
-        if (!this.db) throw new Error("Database not initialized!");
+        await this._ensureInit();
         const c = await this.db.connect();
         try {
             const db_wrapper = createDbWrapper(c, this.queryLogger, 'white', this.db);
@@ -255,7 +278,7 @@ export class DuckDBWasmEngine {
     }
 
     async findBestMove(fromFEN, options) {
-        if (!this.db) throw new Error("Database not initialized!");
+        await this._ensureInit();
         const c = await this.db.connect();
         const color = fromFEN.split(' ')[1] === 'w' ? 'white' : 'black';
         try {
@@ -275,7 +298,7 @@ export class DuckDBWasmEngine {
     }
 
     async makeMove(fromFEN, fromPos, toPos, promotion = 'q') {
-        if (!this.db) throw new Error("Database not initialized!");
+        await this._ensureInit();
         const c = await this.db.connect();
         try {
             const db_wrapper = createDbWrapper(c, this.queryLogger, 'white', this.db);
@@ -286,7 +309,7 @@ export class DuckDBWasmEngine {
     }
 
     async checkEndGame(fromFEN) {
-        if (!this.db) throw new Error("Database not initialized!");
+        await this._ensureInit();
         const c = await this.db.connect();
         try {
             const db_wrapper = createDbWrapper(c, this.queryLogger, 'white', this.db);
@@ -314,9 +337,7 @@ export class DuckDBWasmEngine {
     }
 
     async query(sql) {
-        if (!this.db) {
-            await this.init();
-        }
+        await this._ensureInit();
         const c = await this.db.connect();
         try {
             const db_wrapper = createDbWrapper(c, this.queryLogger, 'white', this.db);
@@ -327,7 +348,7 @@ export class DuckDBWasmEngine {
     }
 
     async getVersion() {
-        if (!this.db) throw new Error("Database not initialized!");
+        await this._ensureInit();
         const c = await this.db.connect();
         try {
             const db_wrapper = createDbWrapper(c, this.queryLogger, 'white', this.db);

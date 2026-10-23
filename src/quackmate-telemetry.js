@@ -652,6 +652,19 @@ class TelemetryManager {
         const side = color === 'w' || color === 'white' ? 'white' : 'black';
         return this.sessions[side];
     }
+
+    /**
+     * Drops the active session for a color (e.g. on a game reset). After this,
+     * getSession() returns null, so the inspector panes fall back to their
+     * "make a move" placeholders instead of showing the previous game's search
+     * statistics and captured cost centers.
+     */
+    clearSession(color) {
+        const side = color === 'w' || color === 'white' ? 'white' : 'black';
+        if (!this.sessions[side]) return;
+        this.sessions[side] = null;
+        this._notify('session_cleared', { color: side });
+    }
 }
 
 // Global Singleton
